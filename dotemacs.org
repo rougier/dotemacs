@@ -15,18 +15,18 @@ However, on my Emacs (28.1), there seems to be a bug that prevent a proper tangl
 
 Each subsection may be tagged with:
 
-:: =:BINDING:=  The section defines some key binding
-:: =:HOOK:=     The section installs some hook
-:: =:ADVICE:=   The section installs some advice
-:: =:FACE:=     The section modifies some face
-:: =:MODE:=     The section activates a mode
-:: =:DEFER:=    The content of the section is deferred (lazy load)
-:: =:PERSONAL:= The content is personal and should be adapted
-:: =:INACTIVE:= The content of the section won't be exported
-:: =:BUGFIX:=   The section contains (temporary) bug fix code
-:: =:OTHER:=    The section will be exported to a different file than default
-:: =:TIMER:=    The section install a timer
-:: =:OS:=       The section contains some system specific code
+- =:BINDING:=  The section defines some key binding
+- =:HOOK:=     The section installs some hook
+- =:ADVICE:=   The section installs some advice
+- =:FACE:=     The section modifies some face
+- =:MODE:=     The section activates a mode
+- =:DEFER:=    The content of the section is deferred (lazy load)
+- =:PERSONAL:= The content is personal and should be adapted
+- =:INACTIVE:= The content of the section won't be exported
+- =:BUGFIX:=   The section contains (temporary) bug fix code
+- =:OTHER:=    The section will be exported to a different file than default
+- =:TIMER:=    The section install a timer
+- =:OS:=       The section contains some system specific code
 
 There is also a configuration mode defined in the section below to ease the writing.
 

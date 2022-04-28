@@ -1,2 +1,4 @@
 
 This document is a litterate configuration for GNU Emacs written in [[https://orgmode.org/][org]] format. It cannot be used directly and needs to be transformed to extract all the different code blocks into a single configuration file. This is done using the [[help:org-babel-tangle][org-babel-tangle]] function that "extract the bodies of all source code blocks from the current file into their own source-specific files". 
+
+[[./dotemacs.png]]
