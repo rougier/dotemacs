@@ -30,7 +30,7 @@ Each subsection may be tagged with:
 
 There is also a configuration mode defined in the section below to ease the writing.
 
-When tangled, the process will create the file [[file:~/.emacs.d/init.el][~/.emacs.org/init.el]]  [[file:~/.emacs.d/early-init.el][~/.emacs.org/early-init.el]] (from the [[Early init]] section).
+When tangled, the process will create the file [[file:~/.emacs.d/init.el][~/.emacs.org/init.el]]  [[file:~/.emacs.d/early-init.el][~/.emacs.org/early-init.el]] (from the [[Early init]] section). You can either copy these files to your ~emacs.d~ or you can use [[https://github.com/plexus/chemacs2][chemacs2]] and add ~.emacs.org~ as an alternative profile.
 
 ** Configuration :BINDING:HOOK:INACTIVE:BUGFIX:
 :PROPERTIES:
@@ -247,7 +247,7 @@ See https://list.orgmode.org/CA+G3_PNrdhx0Ejzw8UO7DgZ+ju1B7Ar_eTch5MMViEpKGwqq3w
 
 ** To sort :INACTIVE:
 
-#+begin_src emacs-lisp :tangle no :results none
+#+begin_src emacs-lisp 
 
 (setq-default
  ad-redefinition-action 'accept         ; Silence warnings for redefinition
@@ -264,7 +264,7 @@ See https://list.orgmode.org/CA+G3_PNrdhx0Ejzw8UO7DgZ+ju1B7Ar_eTch5MMViEpKGwqq3w
 
 - Make tag filtering works. Ideally, by marking them salient in the side imenu-list or view org-tag-view
 - Display tags and size of each section in the sidebar
-- Debug menu where a section can be activated/inactivates using prologue/epilogue on each section
+
 * Core
 
 #+begin_src emacs-lisp
@@ -330,8 +330,7 @@ This code is meant to go to the [[file:early-init.el][early-init.el]] file.
 
 ** Packages management :PERSONAL:
 
-
-Using [[https://github.com/raxod502/straight.el][straight.el]] for package management and disable cheking (for speedup).
+Using [[https://github.com/raxod502/straight.el][straight.el]] for package management and disable checking (for speedup).
 
 #+begin_src emacs-lisp
 
@@ -362,7 +361,7 @@ Library and theme load paths with a special case for mu4e (you may need to adapt
 (add-to-list 'load-path
              (expand-file-name "lisp" user-emacs-directory))
 (add-to-list 'custom-theme-load-path
-             (expand-file-name "lisp" user-emacs-directory))
+             (expand-file-name "theme" user-emacs-directory))
 (add-to-list 'load-path 
   "/usr/local/Cellar/mu/1.6.10/share/emacs/site-lisp/mu/mu4e/mu4e.el")
 
@@ -414,7 +413,7 @@ My personal packages
  '(org-agenda-property :type git :host github :repo "Malabarba/org-agenda-property"
                        :fork (:host github :repo "rougier/org-agenda-property")))
 
-;; NANO theme
+;; NANO splash
 (straight-use-package
  '(nano-splash :type git :host github :repo "rougier/nano-splash"))
 
@@ -494,6 +493,7 @@ We tell emacs to use UTF-8 encoding as much as possible.
 #+end_src
 
 ** Recovery
+
 If Emacs or the computer crashes, you can recover the files you were editing at the time of the crash from their auto-save files. To do this, start Emacs again and type the command ~M-x recover-session~. Here, we parameterize how files are saved in the background.
 
 #+begin_src emacs-lisp
@@ -532,6 +532,7 @@ Emacs carefully copies the old contents to another file, called the “backup”
 (setq bookmark-default-file (expand-file-name "bookmark" user-emacs-directory))
 
 #+end_src
+
 ** Recent files
 
 50 Recents files with some exclusion (regex patterns).
@@ -1128,7 +1129,7 @@ Replace region when inserting text
 
 #+end_src
 
-A fill/unfill command
+A smarter fill/unfill command
 
 #+begin_src emacs-lisp
 
@@ -1415,6 +1416,7 @@ Visual line mode for prog and text modes
 (add-hook 'prog-mode-hook 'visual-line-mode)
 
 #+end_src
+
 ** Tabulations
 
 No tabulation, ever.
@@ -1646,7 +1648,6 @@ Bind =shift-tab= for completion
 (bind-key "<backtab>" #'minibuffer-complete vertico-map)
 
 #+end_src
-
 
 Completion-at-point and completion-in-region (see
 https://github.com/minad/vertico#completion-at-point-and-completion-in-region)
@@ -1989,9 +1990,9 @@ Some bindings to avoid confirmation for execution (headers and message view)
 
 #+end_src
 
-** Accounts
+** Accounts :PERSONAL:
 
-*** General :PERSONAL:
+*** General 
 
 General information about me.
 
@@ -2367,7 +2368,7 @@ Some face specification for folding.
                      (face-background 'default))
 
 (set-face-background 'mu4e-folding-root-unfolded-face
-                     (face-background 'nano-subtle))
+                     (face-background 'highlight))
 
 #+end_src
 
@@ -2574,7 +2575,7 @@ Since a header can now be displayed over several consecutive lines, we need to r
 
 #+end_src
 
-A special highlight function for root headers and this headers view
+A special highlight function for root headers that takes the multiline root header into account
 
 #+begin_src emacs-lisp
 
@@ -3237,8 +3238,7 @@ Prevent magit from writing in the header line.
 
 #+end_src
 
-Add fringe on the left side of magit windows such that we can
-highlight region using the fringe.
+Add fringe on the left side of magit windows such that we can highlight region using the fringe.
 
 #+begin_src emacs-lisp
 
@@ -3507,7 +3507,7 @@ Open an iterm (OSX) and go to the curent directory
 
 ** Profiling
 
-Initialization time
+Report final initialization time
 
 #+begin_src emacs-lisp
 
