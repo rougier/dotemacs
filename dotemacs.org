@@ -1,0 +1,3521 @@
+#+TITLE: Emacs litterate configuration
+#+AUTHOR: Nicolas P. Rougier
+#+DATE: 04/2022
+#+STARTUP: show2levels indent hidestars
+#+PROPERTY: header-args :tangle (let ((org-use-tag-inheritance t)) (if (member "INACTIVE" (org-get-tags))  "no" "~/.emacs.org/init.el")))
+
+
+* Documentation
+
+** Forewords
+
+This document is a litterate configuration for GNU Emacs written in [[https://orgmode.org/][org]] format. It cannot be used directly and needs to be transformed to extract all the different code blocks into a single configuration file. This is done using the [[help:org-babel-tangle][org-babel-tangle]] function that "extract the bodies of all source code blocks from the current file into their own source-specific files". You can try by yourself by typing the sequence: =C-c C-v t=
+
+However, on my Emacs (28.1), there seems to be a bug that prevent a proper tangling. You'll thus need to go to the [[Configuration]] section and excute it using =C-c C-v s= to fix this bug before tangling the file.
+
+Each subsection may be tagged with:
+
+:: =:BINDING:=  The section defines some key binding
+:: =:HOOK:=     The section installs some hook
+:: =:ADVICE:=   The section installs some advice
+:: =:FACE:=     The section modifies some face
+:: =:MODE:=     The section activates a mode
+:: =:DEFER:=    The content of the section is deferred (lazy load)
+:: =:PERSONAL:= The content is personal and should be adapted
+:: =:INACTIVE:= The content of the section won't be exported
+:: =:BUGFIX:=   The section contains (temporary) bug fix code
+:: =:OTHER:=    The section will be exported to a different file than default
+:: =:TIMER:=    The section install a timer
+:: =:OS:=       The section contains some system specific code
+
+There is also a configuration mode defined in the section below to ease the writing.
+
+When tangled, the process will create the file [[file:~/.emacs.d/init.el][~/.emacs.org/init.el]]  [[file:~/.emacs.d/early-init.el][~/.emacs.org/early-init.el]] (from the [[Early init]] section).
+
+** Configuration :BINDING:HOOK:INACTIVE:BUGFIX:
+:PROPERTIES:
+:header-args:emacs-lisp: :results none
+:END:
+
+This section is meant to ease the writing of the configuration file using a dedicated minor mode (~my/config-mode~) with a few key bindings:
+
+=C-`=       : Toggle navigation sidebar
+=C-c C-p=   : Go to previous subsection
+=C-c C-n=   : Go to next subsection
+=C-c C-S-p= : Go to previous section
+=C-c C-S-n= : Go to next section
+=C-c t=     : Fold code blocks
+=C-c C-v t= : Export (tangle) code
+=C-c C-v s= : Execute current subsection
+
+Before being able to use it, you need to execute the whole subtree using [[help:org-babel-execute-subtree][org-babel-execute-subtree]] (generally bound to =C-c C-v s=).
+
+Default tangle target file. This will be overriden for the =:EARLY:= section
+
+#+name: my/org-sidebar
+#+begin_src emacs-lisp
+
+(require 'imenu)
+(require 'imenu-list)
+
+(defun my/org-tree-to-indirect-buffer ()
+  "Create indirect buffer, narrow it to current subtree and unfold blocks"
+  
+  (org-tree-to-indirect-buffer)
+  (org-show-block-all)
+  (setq-local my/org-blocks-hidden nil))
+
+(defun my/org-sidebar ()
+  "Open an imenu list on the left that allow navigation."
+  
+  (interactive)
+  (setq imenu-list-after-jump-hook #'my/org-tree-to-indirect-buffer
+        imenu-list-position 'left
+        imenu-list-size 36
+        imenu-list-focus-after-activation t)
+
+  (let ((heading (substring-no-properties (or (org-get-heading t t t t) ""))))
+    (when (buffer-base-buffer)
+      (switch-to-buffer (buffer-base-buffer)))
+    (imenu-list-minor-mode)
+    (imenu-list-stop-timer)
+    (hl-line-mode)
+    (face-remap-add-relative 'hl-line :inherit 'nano-strong-i)
+    (setq header-line-format
+          '(:eval
+            (nano-modeline-render nil
+                                  (buffer-name imenu-list--displayed-buffer)
+                                  "(outline)"
+                                  "")))
+    (setq-local cursor-type nil)
+    (when (> (length heading) 0)
+      (goto-char (point-min))
+      (search-forward heading)
+      (imenu-list-display-dwim))))
+
+#+end_src
+
+This toggles the org-sidebar.
+
+#+name: org-sidebar-toggle
+#+begin_src emacs-lisp
+
+(defun my/org-sidebar-toggle ()
+  "Toggle the org-sidebar"
+  
+  (interactive)
+  (if (get-buffer-window "*Ilist*")
+      (progn 
+        (quit-window nil (get-buffer-window "*Ilist*"))
+        (switch-to-buffer (buffer-base-buffer)))
+    (my/org-sidebar)))
+
+#+end_src
+
+Make sure tangle is applied to the base buffer and not the subtree.
+
+#+name: my/org-babel-tangle
+#+begin_src emacs-lisp
+
+(defun my/org-babel-tangle ()
+  "Write code blocks to source-specific files from the base buffer."
+
+  (interactive)
+  (with-current-buffer (or (buffer-base-buffer)
+                           (current-buffer))
+    (org-babel-tangle)))
+
+#+end_src
+
+Toggle code blocks folding, starting folded.
+
+#+name: my/org-toggle-blocks
+#+begin_src emacs-lisp
+
+(defvar my/org-blocks-hidden nil)
+
+(defun my/org-toggle-blocks ()
+  "Toggle code blocks folding."
+  
+  (interactive)
+  (if my/org-blocks-hidden
+      (org-show-block-all)
+    (org-hide-block-all))
+  (setq-local my/org-blocks-hidden (not my/org-blocks-hidden)))
+
+(add-hook 'config-mode-hook #'my/org-toggle-blocks)
+
+#+end_src
+
+Navigation commands using the ilist menu.
+
+#+begin_src emacs-lisp
+
+(defun my/config-mode-prev-header ()
+  "Move to previous header"
+  
+  (interactive)
+  (with-current-buffer "*Ilist*"
+    (search-backward-regexp "^  ")
+    (imenu-list-display-dwim)))
+
+(defun my/config-mode-next-header ()
+  "Move to next header"
+    
+  (interactive)
+  (with-current-buffer "*Ilist*"
+    (forward-line)
+    (search-forward-regexp "^  ")
+    (imenu-list-display-dwim)))
+
+(defun my/config-mode-prev-section ()
+  "Move to previous section"
+    
+  (interactive)
+  (with-current-buffer "*Ilist*"
+    (search-backward-regexp "\\+ " nil nil 2)
+    (forward-line)
+    (imenu-list-display-dwim)))
+
+(defun my/config-mode-next-section ()
+  "Move to next section"
+    
+  (interactive)
+  (with-current-buffer "*Ilist*"
+    (previous-line)
+    (search-forward-regexp "\\+ ")
+    (forward-line)
+    (imenu-list-display-dwim)))
+
+#+end_src
+
+A minor mode for configuration
+
+#+name: config-mode
+#+begin_src emacs-lisp
+
+(define-minor-mode my/config-mode
+  "Configuration mode"
+  
+  :init-value nil
+  :global nil
+  :keymap (let ((map (make-sparse-keymap)))
+            (bind-key "C-c C-p"   #'my/config-mode-prev-header map)
+            (bind-key "C-c C-n"   #'my/config-mode-next-header map)
+            (bind-key "C-c C-S-p" #'my/config-mode-prev-section map)
+            (bind-key "C-c C-S-n" #'my/config-mode-next-section map)
+            (bind-key "C-`"       #'my/org-sidebar-toggle map)
+            (bind-key "C-c C-v t" #'my/org-babel-tangle map)
+            (bind-key "C-c t"     #'my/org-toggle-blocks map)
+            map)
+  (if my/config-mode
+      (my/org-sidebar)))
+  
+#+end_src
+
+A shortcut for emacs-lisp source blocks. Type "<S" (in org-mode) then press tab.
+
+#+begin_src emacs-lisp
+
+(require 'org-tempo)
+
+(add-to-list 'org-structure-template-alist
+             '("S" . "src emacs-lisp"))
+
+#+end_src
+
+*Temporary bugfix* for babel emacs-lisp that does not take into account prologue/epilogue.
+See https://list.orgmode.org/CA+G3_PNrdhx0Ejzw8UO7DgZ+ju1B7Ar_eTch5MMViEpKGwqq3w@mail.gmail.com/T/
+(November 2020)
+
+#+name: org-babel-expand-body:emacs-lisp
+#+begin_src emacs-lisp
+
+(defun my/org-babel-expand-body:emacs-lisp (orig-fun body params)
+  "Expand BODY according to PARAMS and call original function with new body"
+
+  (let* ((pro (or (cdr (assq :prologue params)) ""))
+         (epi (or (cdr (assq :epilogue params)) ""))
+         (body (concat pro body epi)))
+    (apply orig-fun `(,body ,params))))
+
+(advice-add 'org-babel-expand-body:emacs-lisp
+            :around
+            #'my/org-babel-expand-body:emacs-lisp)
+
+#+end_src
+
+** To sort :INACTIVE:
+
+#+begin_src emacs-lisp :tangle no :results none
+
+(setq-default
+ ad-redefinition-action 'accept         ; Silence warnings for redefinition
+ custom-unlispify-menu-entries nil      ; Prefer kebab-case for titles
+ custom-unlispify-tag-names nil         ; Prefer kebab-case for symbols
+(put 'downcase-region 'disabled nil)    ; Enable downcase-region
+(put 'upcase-region 'disabled nil)      ; Enable upcase-region
+ native-comp-async-report-warnings-errors 'silent ; Skip compilation error buffers
+ read-process-output-max (* 1024 1024)  ; Increase read size per process
+
+#+end_src
+
+** To do :INACTIVE:
+
+- Make tag filtering works. Ideally, by marking them salient in the side imenu-list or view org-tag-view
+- Display tags and size of each section in the sidebar
+- Debug menu where a section can be activated/inactivates using prologue/epilogue on each section
+* Core
+
+#+begin_src emacs-lisp
+
+(setq my/section-start-time (current-time))
+
+#+end_src
+
+** Header 
+
+This will generate a header at the top of the tangled file to indicate it is generated and is not meant to be modified directly.
+
+#+begin_src emacs-lisp :epilogue (format-time-string ";; Last generated on %c")
+
+;; This file has been generated from dotemacs.org file. DO NOT EDIT.
+;; Sources are available from https://github.com/rougier/dotemacs
+
+;; Copyright (C) 2022 Nicolas P. Rougier
+
+;; This file is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation; either version 3, or (at your option)
+;; any later version.
+
+;; This file is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; For a full copy of the GNU General Public License
+;; see <https://www.gnu.org/licenses/>.
+
+#+end_src
+
+#+begin_src emacs-lisp
+
+(defvar my/init-start-time (current-time) "Time when init.el was started")
+(defvar my/section-start-time (current-time) "Time when section was started")
+
+#+end_src
+
+** Early init :HOOK:OTHER:
+:PROPERTIES:
+:header-args:emacs-lisp: :tangle "~/.emacs.org/early-init.el"
+:END:
+
+This code is meant to go to the [[file:early-init.el][early-init.el]] file.
+
+#+begin_src emacs-lisp
+
+(setq
+ site-run-file nil                         ; No site-wide run-time initializations. 
+ inhibit-default-init t                    ; No site-wide default library
+ gc-cons-threshold most-positive-fixnum    ; Very large threshold for garbage
+                                           ; collector during init
+ package-enable-at-startup nil)            ; We'll use straight.el
+
+;; Reset garbage collector limit after init process has ended (8Mo)
+(add-hook 'after-init-hook
+          #'(lambda () (setq gc-cons-threshold (* 8 1024 1024))))
+
+#+end_src 
+
+** Packages management :PERSONAL:
+
+
+Using [[https://github.com/raxod502/straight.el][straight.el]] for package management and disable cheking (for speedup).
+
+#+begin_src emacs-lisp
+
+(setq straight-check-for-modifications nil)
+
+#+end_src
+
+#+begin_src emacs-lisp
+(defvar bootstrap-version)
+(let ((bootstrap-file
+       (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
+      (bootstrap-version 5))
+  (unless (file-exists-p bootstrap-file)
+    (with-current-buffer
+        (url-retrieve-synchronously
+         "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
+         'silent 'inhibit-cookies)
+      (goto-char (point-max))
+      (eval-print-last-sexp)))
+  (load bootstrap-file nil 'nomessage))
+
+#+end_src
+
+Library and theme load paths with a special case for mu4e (you may need to adapt this path).
+
+#+begin_src emacs-lisp
+
+(add-to-list 'load-path
+             (expand-file-name "lisp" user-emacs-directory))
+(add-to-list 'custom-theme-load-path
+             (expand-file-name "lisp" user-emacs-directory))
+(add-to-list 'load-path 
+  "/usr/local/Cellar/mu/1.6.10/share/emacs/site-lisp/mu/mu4e/mu4e.el")
+
+#+end_src
+
+** Packages installation 
+
+Packages used in this specific configuration. You may want to adapt this list. The first time this sequence will be executed, *it will take a long time*. Then, at next restart, it should be very fast (less than 1 second because it won't install anything basically).
+
+#+begin_src emacs-lisp
+
+(setq package-list
+      '(cape                ; Completion At Point Extensions
+        orderless           ; Completion style for matching regexps in any order
+        vertico             ; VERTical Interactive COmpletion
+        marginalia          ; Enrich existing commands with completion annotations
+        consult             ; Consulting completing-read
+        corfu               ; Completion Overlay Region FUnction
+        deft                ; Quickly browse, filter, and edit plain text notes
+        elfeed              ; Emacs Atom/RSS feed reader
+        elfeed-org          ; Configure elfeed with one or more org-mode files
+        citar               ; Citation-related commands for org, latex, markdown
+        citeproc            ; A CSL 1.0.2 Citation Processor
+        flyspell-correct-popup ; Correcting words with flyspell via popup interface
+        flyspell-popup      ; Correcting words with Flyspell in popup menus
+        guess-language      ; Robust automatic language detection
+        helpful             ; A better help buffer
+        mini-frame          ; Show minibuffer in child frame on read-from-minibuffer
+        imenu-list          ; Show imenu entries in a separate buffer
+        magit               ; A Git porcelain inside Emacs.
+        markdown-mode       ; Major mode for Markdown-formatted text
+        multi-term          ; Managing multiple terminal buffers in Emacs.
+        pinentry            ; GnuPG Pinentry server implementation
+        use-package         ; A configuration macro for simplifying your .emacs
+        which-key))         ; Display available keybindings in popup
+
+;; Install packages that are not yet installed
+(dolist (package package-list)
+  (straight-use-package package))
+
+#+end_src
+
+My personal packages
+
+#+begin_src emacs-lisp
+
+;; Display org properties in the agenda buffer (modified version)
+(straight-use-package
+ '(org-agenda-property :type git :host github :repo "Malabarba/org-agenda-property"
+                       :fork (:host github :repo "rougier/org-agenda-property")))
+
+;; NANO theme
+(straight-use-package
+ '(nano-splash :type git :host github :repo "rougier/nano-splash"))
+
+;; NANO theme
+(straight-use-package
+ '(nano-theme :type git :host github :repo "rougier/nano-theme"))
+
+;; NANO modeline
+(straight-use-package
+ '(nano-modeline :type git :host github :repo "rougier/nano-modeline"))
+
+;; NANO minibuffer
+(straight-use-package
+ '(nano-minibuffer :type git :host github :repo "rougier/nano-minibuffer"))
+
+;; NANO agenda
+(straight-use-package
+ '(nano-agenda :type git :host github :repo "rougier/nano-agenda"))
+
+;; SVG tags, progress bars & icons
+(straight-use-package
+ '(svg-lib :type git :host github :repo "rougier/svg-lib"))
+
+;; Replace keywords with SVG tags
+(straight-use-package
+ '(svg-tag-mode :type git :host github :repo "rougier/svg-tag-mode"))
+
+;; Dashboard for mu4e
+(straight-use-package
+ '(mu4e-dashboard :type git :host github :repo "rougier/mu4e-dashboard"))
+
+;; Folding mode for mu4e
+(straight-use-package
+ '(mu4e-folding :type git :host github :repo "rougier/mu4e-folding"))
+
+;; Bilbliography manager in org mode
+;; (straight-use-package
+;;  '(org-bib :type git :host github :repo "rougier/org-bib"))
+
+#+end_src
+** Startup :TIMER:
+
+Emacs does a lot of things at startup and here, we disable pretty much everything.
+
+#+begin_src emacs-lisp
+
+(setq-default
+ inhibit-startup-screen t               ; Disable start-up screen
+ inhibit-startup-message t              ; Disable startup message
+ inhibit-startup-echo-area-message t    ; Disable initial echo message
+ initial-scratch-message ""             ; Empty the initial *scratch* buffer
+ initial-buffer-choice t)               ; Open *scratch* buffer at init
+
+#+end_src
+
+We'll use the [[help:bind-key][bind-key]] function (from use-pacakge) for bindings. Then you can use [[help:describe-personal-keybindings][describe-personal-keybindings]] to check for your personal bindings.
+
+#+begin_src emacs-lisp
+
+(require 'bind-key)
+
+#+end_src
+
+** Encoding
+
+We tell emacs to use UTF-8 encoding as much as possible.
+
+#+begin_src emacs-lisp
+
+(set-default-coding-systems 'utf-8)     ; Default to utf-8 encoding
+(prefer-coding-system       'utf-8)     ; Add utf-8 at the front for automatic detection.
+(set-default-coding-systems 'utf-8)     ; Set default value of various coding systems
+(set-terminal-coding-system 'utf-8)     ; Set coding system of terminal output
+(set-keyboard-coding-system 'utf-8)     ; Set coding system for keyboard input on TERMINAL
+(set-language-environment "English")    ; Set up multilingual environment
+
+#+end_src
+
+** Recovery
+If Emacs or the computer crashes, you can recover the files you were editing at the time of the crash from their auto-save files. To do this, start Emacs again and type the command ~M-x recover-session~. Here, we parameterize how files are saved in the background.
+
+#+begin_src emacs-lisp
+
+(setq auto-save-list-file-prefix ; Prefix for generating auto-save-list-file-name
+      (expand-file-name ".auto-save-list/.saves-" user-emacs-directory)
+      auto-save-default t        ; Auto-save every buffer that visits a file
+      auto-save-timeout 20       ; Number of seconds between auto-save
+      auto-save-interval 200)    ; Number of keystrokes between auto-saves
+
+#+end_src
+
+** Backups
+
+Emacs carefully copies the old contents to another file, called the “backup” file, before actually saving. Emacs makes a backup for a file only the first time the file is saved from a buffer. No matter how many times you subsequently save the file, its backup remains unchanged. However, if you kill the buffer and then visit the file again, a new backup file will be made. Here, we activate backup and parameterize the number of backups to keep.
+
+#+begin_src emacs-lisp
+
+(setq backup-directory-alist       ; File name patterns and backup directory names.
+      `(("." . ,(expand-file-name "backups" user-emacs-directory)))
+      make-backup-files t          ; Backup of a file the first time it is saved.
+      vc-make-backup-files nil     ; No backup of files under version contr
+      backup-by-copying t          ; Don't clobber symlinks
+      version-control t            ; Version numbers for backup files
+      delete-old-versions t        ; Delete excess backup files silently
+      kept-old-versions 6          ; Number of old versions to keep
+      kept-new-versions 9          ; Number of new versions to keep
+      delete-by-moving-to-trash t) ; Delete files to trash
+
+#+end_src
+
+** Bookmarks
+
+#+begin_src emacs-lisp
+
+(setq bookmark-default-file (expand-file-name "bookmark" user-emacs-directory))
+
+#+end_src
+** Recent files
+
+50 Recents files with some exclusion (regex patterns).
+
+#+begin_src emacs-lisp
+
+(require 'recentf)
+
+(setq recentf-max-menu-items 50
+      recentf-exclude '("/Users/rougier/Documents/Mail.+"))
+
+(let (message-log-max)
+  (recentf-mode 1))
+
+#+end_src
+
+** History :HOOK:
+
+Remove text properties for kill ring entries (see https://emacs.stackexchange.com/questions/4187). This saves a lot of time when loading it.
+
+ #+begin_src emacs-lisp 
+
+(defun unpropertize-kill-ring ()
+  (setq kill-ring (mapcar 'substring-no-properties kill-ring)))
+(add-hook 'kill-emacs-hook 'unpropertize-kill-ring)
+
+#+end_src
+
+We save every possible history we can think of.
+
+#+begin_src emacs-lisp 
+
+(require 'savehist)
+
+(setq kill-ring-max 50
+      history-length 50)
+
+(setq savehist-additional-variables
+      '(kill-ring
+        command-history
+        set-variable-value-history
+        custom-variable-history   
+        query-replace-history     
+        read-expression-history   
+        minibuffer-history        
+        read-char-history         
+        face-name-history         
+        bookmark-history
+        file-name-history))
+
+ (put 'minibuffer-history         'history-length 50)
+ (put 'file-name-history          'history-length 50)
+ (put 'set-variable-value-history 'history-length 25)
+ (put 'custom-variable-history    'history-length 25)
+ (put 'query-replace-history      'history-length 25)
+ (put 'read-expression-history    'history-length 25)
+ (put 'read-char-history          'history-length 25)
+ (put 'face-name-history          'history-length 25)
+ (put 'bookmark-history           'history-length 25)
+
+#+end_src
+
+No duplicates in history
+  
+#+begin_src emacs-lisp
+
+(setq history-delete-duplicates t)
+
+#+end_src
+  
+Start history mode.
+
+#+begin_src emacs-lisp
+
+(let (message-log-max)
+  (savehist-mode))
+
+#+end_src
+
+** Customization
+
+Since init.el will be generated from this file, we save customization in a dedicated file.
+
+#+begin_src emacs-lisp
+
+(setq custom-file (concat user-emacs-directory "custom.el"))
+
+(when (file-exists-p custom-file)
+  (load custom-file nil t))
+
+#+end_src
+
+** Server
+
+Server start.
+
+#+begin_src emacs-lisp
+
+(require 'server)
+
+(unless (server-running-p)
+  (server-start))
+
+#+end_src
+
+** Benchmark
+
+#+begin_src emacs-lisp
+
+(message "Core section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+
+* Personal library
+
+#+begin_src emacs-lisp
+
+(setq my/section-start-time (current-time))
+
+#+end_src
+
+Some functions that are used throughout this configuration.
+
+** String related
+
+A set of functions to join two strings such as to fit a given width. This will be used for displaying elfeed posts, privileging the right part (tag and feed).
+
+#+name: my/string-pad-right
+#+begin_src emacs-lisp
+
+(defun my/string-pad-right (len s)
+  "If S is shorter than LEN, pad it on the right,
+   if S is longer than LEN, truncate it on the right."
+
+  (if (> (length s) len)
+      (concat (substring s 0 (- len 1)) "…")
+    (concat s (make-string (max 0 (- len (length s))) ?\ ))))
+
+#+end_src
+
+#+name: my/string-pad-left
+#+begin_src emacs-lisp
+
+(defun my/string-pad-left (len s)
+  "If S is shorter than LEN, pad it on the left,
+   if S is longer than LEN, truncate it on the left."
+  
+  (if (> (length s) len)
+      (concat  "…" (substring s (- (length s) len -1)))
+    (concat (make-string (max 0 (- len (length s))) ?\ ) s)))
+
+#+end_src
+
+#+name: my/string-join
+#+begin_src emacs-lisp
+
+(defun my/string-join (len left right &optional spacing)
+  "Join LEFT and RIGHT strings to fit LEN characters with at least SPACING characters 
+between them. If len is negative, it is retrieved from current window width."
+
+    (let* ((spacing (or spacing 3))
+           (len (or len (window-body-width)))
+           (len (if (< len 0)
+                   (+ (window-body-width) len)
+                  len)))
+      (cond ((> (length right) len)
+             (my/string-pad-left len right))
+
+            ((> (length right) (- len spacing))
+             (my/string-pad-left len (concat (make-string spacing ?\ )
+                                        right)))
+
+            ((> (length left) (- len spacing (length right)))
+             (concat (my/string-pad-right (- len spacing (length right)) left)
+                     (concat (make-string spacing ?\ )
+                             right)))
+            (t
+             (concat left
+                     (make-string (- len (length right) (length left)) ?\ )
+                     right)))))
+
+#+end_src
+
+** Date related
+
+A set of date related functions, mostly used for mail display.
+
+#+name: my/date-day
+#+begin_src emacs-lisp
+
+(defun my/date-day (date)
+  "Return DATE day of month (1-31)."
+
+  (nth 3 (decode-time date)))
+
+#+end_src
+
+#+name: my/date-month
+#+begin_src emacs-lisp
+
+(defun my/date-month (date)
+  "Return DATE month number (1-12)."
+  
+  (nth 4 (decode-time date)))
+
+#+end_src
+  
+#+name: my/date-year
+#+begin_src emacs-lisp
+
+(defun my/date-year (date)
+  "Return DATE year."
+
+  (nth 5 (decode-time date)))
+
+#+end_src
+
+#+name: my/date-equal
+#+begin_src emacs-lisp
+
+(defun my/date-equal (date1 date2)
+  "Check if DATE1 is equal to DATE2."
+  
+  (and (eq (my/date-day date1)
+           (my/date-day date2))
+       (eq (my/date-month date1)
+           (my/date-month date2))
+       (eq (my/date-year date1)
+           (my/date-year date2))))
+
+#+end_src
+
+#+name: my/date-inc
+#+begin_src emacs-lisp
+
+(defun my/date-inc (date &optional days months years)
+  "Return DATE + DAYS day & MONTH months & YEARS years"
+
+  (let ((days (or days 0))
+        (months (or months 0))
+        (years (or years 0))
+        (day (my/date-day date))
+        (month (my/date-month date))
+        (year (my/date-year date)))
+    (encode-time 0 0 0 (+ day days) (+ month months) (+ year years))))
+
+#+end_src
+
+#+name: my/date-dec
+#+begin_src emacs-lisp
+
+(defun my/date-dec (date &optional days months years)
+  "Return DATE - DAYS day & MONTH months & YEARS years"
+  
+  (let ((days (or days 0))
+        (months (or months 0))
+        (years (or years 0)))
+    (my/date-inc date (- days) (- months) (- years))))
+
+#+end_src
+
+#+name: my/date-today
+#+begin_src emacs-lisp
+
+(defun my/date-today ()
+  "Return today date."
+  
+  (current-time))
+
+#+end_src
+
+#+name: my/date-is-today
+#+begin_src emacs-lisp
+
+(defun my/date-is-today (date)
+  "Check if DATE is today."
+  
+  (my/date-equal (current-time) date))
+
+#+end_src
+
+#+name: my/date-is-yesterday
+#+begin_src emacs-lisp
+
+(defun my/date-is-yesterday (date)
+  "Check if DATE is today."
+  
+  (my/date-equal (my/date-dec (my/date-today) 1) date))
+
+#+end_src
+
+#+name: my/date-relative
+#+begin_src emacs-lisp
+
+(defun my/date-relative (date)
+  "Return a string with a relative date format."
+
+  (let ((delta (float-time (time-subtract (current-time) date)))
+        (days (- (my/date-day (current-time)) (my/date-day date))))
+    (cond ((< delta (*       3 60))     "now")
+          ((< delta (*      60 60))     (format "%d minutes ago" (/ delta   60)))
+          ;;  ((< delta (*    6 60 60))     (format "%d hours ago"   (/ delta 3600)))
+          ((my/date-is-today date)      (format-time-string "%H:%M" date))
+          ((my/date-is-yesterday date)  (format "Yesterday"))
+          ((< delta (* 4 24 60 60))     (format "%d days ago" (+ days 1)))
+          (t                            (format-time-string "%d %b %Y" date)))))
+
+#+end_src
+
+** Mu4e related
+
+A set of mail (mu4e) related functions.
+
+#+name: my/mu4e-get-account
+#+begin_src emacs-lisp
+
+(defun my/mu4e-get-account (msg)
+  "Get MSG related account."
+  
+  (let* ((maildir (mu4e-message-field msg :maildir))
+         (maildir (substring maildir 1)))
+    (nth 0 (split-string maildir "/"))))
+
+#+end_src
+
+#+name: my/mu4e-get-maildir
+#+begin_src emacs-lisp
+
+(defun my/mu4e-get-maildir (msg)
+  "Get MSG related maildir."
+  
+  (let* ((maildir (mu4e-message-field msg :maildir))
+         (maildir (substring maildir 1)))
+    (nth 0 (reverse (split-string maildir "/")))))
+
+#+end_src
+
+#+name: my/mu4e-get-mailbox
+#+begin_src emacs-lisp
+
+(defun my/mu4e-get-mailbox (msg)
+  "Get MSG related mailbox as 'account - maildir' "
+  
+  (format "%s - %s" (mu4e-get-account msg) (mu4e-get-maildir msg)))
+
+#+end_src
+
+#+name: my/mu4e-get-sender
+#+begin_src emacs-lisp
+
+(defun my/mu4e-get-sender (msg)
+  "Get MSG sender."
+  
+  (let ((addr (cdr-safe (car-safe (mu4e-message-field msg :from)))))
+      (mu4e~headers-contact-str (mu4e-message-field msg :from))))
+
+#+end_src
+
+** Benchmark
+
+#+begin_src emacs-lisp
+
+(message "Personal library section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+* Interface
+
+#+begin_src emacs-lisp
+
+(setq my/section-start-time (current-time))
+
+#+end_src
+
+** Frame :BINDING:
+
+A [[help:make-frame][make-frame]] rewrote that creates the frame and switch to the ~*scratch*~ buffer.
+
+#+name: my/new-frame
+#+begin_src emacs-lisp
+
+(defun my/make-frame ()
+  "Create a new frame and switch to *scratch* buffer."
+
+  (interactive)
+  (select-frame (make-frame))
+  (switch-to-buffer "*scratch*"))
+
+#+end_src
+
+A function that close the current frame and kill emacs if it was the last frame.
+
+#+name: my/kill-emacs
+#+begin_src emacs-lisp
+
+(defun my/kill-emacs ()
+  "Delete frame or kill Emacs if there is only one frame."
+  
+  (interactive)
+  (condition-case nil
+      (delete-frame)
+    (error (save-buffers-kill-terminal))))
+
+#+end_src
+
+Default frame geometry (large margin: 24 pixels).
+
+#+begin_src emacs-lisp
+
+(require 'frame)
+
+;; Default frame settings
+(setq default-frame-alist '((min-height . 1)  '(height . 45)
+                            (min-width  . 1)  '(width  . 81)
+                            (vertical-scroll-bars . nil)
+                            (internal-border-width . 24)
+                            (left-fringe . 0)
+                            (right-fringe . 0)
+                            (tool-bar-lines . 0)
+                            (menu-bar-lines . 0)))
+
+;; Default frame settings
+(setq initial-frame-alist default-frame-alist)
+
+
+#+end_src
+
+Frame related binding (self explanatory).
+
+#+begin_src emacs-lisp
+
+(bind-key "M-n"        #'my/make-frame)
+(bind-key "C-x C-c"    #'my/kill-emacs)
+(bind-key "M-`"        #'other-frame)
+(bind-key "C-z"        nil)
+(bind-key "<M-return>" #'toggle-frame-maximized)
+
+#+end_src
+
+For frame maximization, we have to make a specific case for [[help:org-mode][org-mode]].
+
+#+begin_src emacs-lisp
+
+(with-eval-after-load 'org
+  (bind-key "<M-return>" #'toggle-frame-maximized 'org-mode-map))
+
+#+end_src
+
+** Window :BINDING:MODE:
+
+Margin and divider mode.
+
+#+begin_src emacs-lisp
+
+(setq-default window-divider-default-right-width 24
+              window-divider-default-places 'right-only
+              left-margin-width 0
+              right-margin-width 0
+              window-combination-resize t)  ; Resize windows proportionally
+
+(window-divider-mode 1)
+
+#+end_src
+
+
+Toggle the dedicated flag on the current window
+
+#+name: my/toggle-window-dedicated
+#+begin_src emacs-lisp
+
+;; Make a window dedicated
+(defun my/toggle-window-dedicated ()
+  "Toggle whether the current active window is dedicated or not"
+  (interactive)
+  (message
+   (if (let (window (get-buffer-window (current-buffer)))
+     (set-window-dedicated-p window (not (window-dedicated-p window))))
+       "Window '%s' is dedicated"
+     "Window '%s' is normal")
+   (current-buffer))
+  (force-window-update))
+
+(bind-key "C-c d" #'my/toggle-window-dedicated)
+
+#+end_src
+
+** Buffer :BINDING:
+
+Size of temporary buffers
+
+#+begin_src emacs-lisp
+
+(temp-buffer-resize-mode)
+(setq temp-buffer-max-height 8)
+
+#+end_src
+
+Unique buffer names
+
+#+begin_src emacs-lisp
+
+(require 'uniquify)
+
+(setq uniquify-buffer-name-style 'reverse
+      uniquify-separator " • "
+      uniquify-after-kill-buffer-p t
+      uniquify-ignore-buffers-re "^\\*")
+
+#+end_src
+
+No question after killing a buffer (kill-buffer asks you which buffer to switch to)
+
+#+begin_src emacs-lisp
+
+(bind-key "C-x k" #'kill-current-buffer)
+
+#+end_src
+** File
+
+Follow symlinks without prompt
+
+#+begin_src emacs-lisp
+
+(setq vc-follow-symlinks t)
+
+#+end_src
+** Dialogs :OS:
+
+Emacs can use a large number of dialogs and popups. Here we get rid of them.
+
+#+begin_src emacs-lisp
+
+(setq-default show-help-function nil    ; No help text
+              use-file-dialog nil       ; No file dialog
+              use-dialog-box nil        ; No dialog box
+              pop-up-windows nil)       ; No popup windows
+
+(tooltip-mode -1)                       ; No tooltips
+(scroll-bar-mode -1)                    ; No scroll bars
+(tool-bar-mode -1)                      ; No toolbar
+
+;; Specific case for OSX since menubar is desktop-wide.
+(if (and (eq system-type 'darwin)
+         (display-graphic-p))
+    (menu-bar-mode 1) 
+  (menu-bar-mode -1))
+
+#+end_src
+
+** Keyboard :MODE:
+
+The mode displays the key bindings following your currently entered incomplete command (a ;; prefix) in a popup.
+
+#+begin_src emacs-lisp
+
+(require 'which-key)
+
+(which-key-mode)
+
+#+end_src
+
+** Cursor
+
+We set the appearance of the cursor: horizontal line, 2 pixels thick, no blinking
+
+#+begin_src emacs-lisp
+
+(setq-default cursor-in-non-selected-windows nil ; Hide the cursor in inactive windows
+              cursor-type '(hbar . 2)            ; Underline-shaped cursor
+              cursor-intangible-mode t           ; Enforce cursor intangibility
+              x-stretch-cursor t)                ; Stretch cursor to the glyph width
+
+(blink-cursor-mode 0)                            ; Still cursor
+
+#+end_src
+
+** Text
+
+Pretty self-explanatory
+
+#+begin_src emacs-lisp
+
+(setq-default use-short-answers t                     ; Replace yes/no prompts with y/n
+              confirm-nonexistent-file-or-buffer nil) ; Ok to visit non existent files
+
+#+end_src
+
+Replace region when inserting text
+               
+#+begin_src emacs-lisp
+
+(delete-selection-mode 1)
+
+#+end_src
+
+A fill/unfill command
+
+#+begin_src emacs-lisp
+
+(defun my/fill-unfill ()
+  "Like `fill-paragraph', but unfill if used twice."
+  
+  (interactive)
+  (let ((fill-column
+         (if (eq last-command #'fill/unfill)
+             (progn (setq this-command nil)
+                    (point-max))
+           fill-column)))
+    (call-interactively #'fill-paragraph)))
+
+(bind-key "M-q"  #'my/fill-unfill)
+;; (bind-key [remap fill-paragraph]  #'my/fill-unfill)
+
+#+end_src
+
+** Sound
+
+Disable the bell (auditory or visual).
+
+#+begin_src emacs-lisp
+
+(setq-default visible-bell nil             ; No visual bell      
+              ring-bell-function 'ignore)  ; No bell
+
+#+end_src
+
+** Mouse :MODE:
+
+Mouse behavior can be finely controlled using the [[help:mouse-avoidance-mode][mouse-avoidance-mode]].
+
+#+begin_src emacs-lisp
+
+(setq-default mouse-yank-at-point t) ; Yank at point rather than pointer
+(mouse-avoidance-mode 'exile)        ; Avoid collision of mouse with point
+
+#+end_src
+
+Mouse active in tty mode.
+
+#+begin_src emacs-lisp
+
+(unless (display-graphic-p)
+  (xterm-mouse-mode 1)
+  (global-set-key (kbd "<mouse-4>") #'scroll-down-line)
+  (global-set-key (kbd "<mouse-5>") #'scroll-up-line))
+
+#+end_src
+
+** Scroll
+
+Smoother scrolling.
+
+#+begin_src emacs-lisp
+
+(setq-default scroll-conservatively 101       ; Avoid recentering when scrolling far
+              scroll-margin 2                 ; Add a margin when scrolling vertically
+              recenter-positions '(5 bottom)) ; Set re-centering positions
+
+#+end_src
+
+** Clipboard :OS:
+
+Allows system and Emacs clipboard to communicate smoothly (both ways)
+
+#+begin_src emacs-lisp
+
+(setq-default select-enable-clipboard t) ; Merge system's and Emacs' clipboard
+
+#+end_src
+
+Make sure clipboard works properly in tty mode on OSX.
+
+#+begin_src emacs-lisp
+
+(defun my/paste-from-osx ()
+  (shell-command-to-string "pbpaste"))
+
+(defun my/copy-to-osx (text &optional push)
+  (let ((process-connection-type nil))
+    (let ((proc (start-process "pbcopy" "*Messages*" "pbcopy")))
+      (process-send-string proc text)
+      (process-send-eof proc))))
+
+(when (and (not (display-graphic-p))
+           (eq system-type 'darwin))
+  (setq interprogram-cut-function   #'my/copy-to-osx
+        interprogram-paste-function #'my/paste-from-osx))
+
+#+end_src
+
+** Help :BINDING:
+
+[[https://github.com/Wilfred/helpful][Helpful]] is an alternative to the built-in Emacs help that provides much more contextual information.
+
+#+begin_src emacs-lisp
+
+(require 'helpful)
+
+(setq help-window-select t)             ; Focus new help windows when opened
+
+(bind-key "C-h f"   #'helpful-callable) ; Look up callable
+(bind-key "C-h v"   #'helpful-variable) ; Look up variable
+(bind-key "C-h k"   #'helpful-key)      ; Look up key 
+(bind-key "C-c C-d" #'helpful-at-point) ; Look up the current symbol at point
+(bind-key "C-h F"   #'helpful-function) ; Look up *F*unctions (excludes macros).
+(bind-key "C-h C"   #'helpful-command)  ; Look up *C*ommands.
+
+#+end_src
+
+** Benchmark
+
+#+begin_src emacs-lisp
+
+(message "Interface section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+
+* Visual
+
+#+begin_src emacs-lisp
+
+(setq my/section-start-time (current-time))
+
+#+end_src
+
+** Colors :MODE:
+
+A consistent theme for GNU Emacs. The light theme is based on Material colors and the dark theme is based on Nord colors. The theme is based on a set of six faces (only).
+
+#+begin_src lisp
+
+(require 'nano-theme)
+(setq nano-fonts-use t) ; Use theme font stack
+(nano-light)            ; Use theme light version
+(nano-mode)             ; Recommended settings
+
+#+end_src
+
+We still want the transient nano splash screen
+
+#+begin_src emacs-lisp
+
+(require 'nano-splash)
+
+#+end_src
+
+** Fonts
+
+This is the font stack we install:
+
+- Default font:  Roboto Mono 14pt Light       [[https://fonts.google.com/specimen/Roboto+Mono][]]
+- /Italic font/:   Victor Mono 14pt Semilight   [[https://github.com/rubjo/victor-mono][]]
+- *Bold font*:     Roboto Mono 14pt Regular     [[https://fonts.google.com/specimen/Roboto+Mono][]] 
+- Unicode font:  Inconsolata 16pt Light       [[https://github.com/googlefonts/Inconsolata][]] 
+- Icon font:     Roboto Mono Nerd 12pt Light  [[https://www.nerdfonts.com/][]]
+  
+Text excerpt using a /gorgeous/ and true italic font (Victor Mono),
+chosen to really *stand out* from the default font (Roboto Mono).
+┌───────────────────────────────────────────────┐ 
+│  The quick brown fox jumps over the lazy dog │
+│  /The quick brown fox jumps over the lazy dog/ ┼─ Victor Mono Italic
+│  *The quick brown fox jumps over the lazy dog* ├─ Inconsolata
+└─┼───────────────────────────┼─────────────────┘
+ Roboto Mono Nerd            Roboto Mono
+
+Note that the Victor Mono needs to be hacked such as to have the same line height as Roboto Mono. To do that, you can use the [[https://github.com/source-foundry/font-line][font-line]] utility (github.com/source-foundry/font-line): copy all the italic faces from the Victor Mono ttf file into a directoy and type: =font-line percent 10 *.ttf=. This will create a new set of files that you can use to replace the Victor Mono italic faces on your system.
+
+ 
+#+begin_src lisp
+
+(set-face-attribute 'default nil
+                    :family "Roboto Mono"
+                    :weight 'light
+                    :height 140)
+
+(set-face-attribute 'bold nil
+                    :family "Roboto Mono"
+                    :weight 'regular)
+
+(set-face-attribute 'italic nil
+                    :family "Victor Mono"
+                    :weight 'semilight
+                    :slant 'italic)
+
+(set-fontset-font t 'unicode
+                    (font-spec :name "Inconsolata Light"
+                               :size 16) nil)
+
+(set-fontset-font t '(#xe000 . #xffdd)
+                     (font-spec :name "RobotoMono Nerd Font"
+                                :size 12) nil)
+
+#+end_src
+
+** Typography
+
+#+begin_src emacs-lisp
+
+(setq-default fill-column 80                          ; Default line width 
+              sentence-end-double-space nil           ; Use a single space after dots
+              bidi-paragraph-direction 'left-to-right ; Faster
+              truncate-string-ellipsis "…")           ; Nicer ellipsis
+
+#+end_src
+
+Changing the symbol for truncation (…) and wrap (↩).
+
+#+begin_src emacs-lisp
+
+(require 'nano-theme)
+
+;; Nicer glyphs for continuation and wrap 
+(set-display-table-slot standard-display-table
+                        'truncation (make-glyph-code ?… 'nano-faded))
+
+(defface wrap-symbol-face
+  '((t (:family "Fira Code"
+        :inherit nano-faded)))
+  "Specific face for wrap symbol")
+
+(set-display-table-slot standard-display-table
+                        'wrap (make-glyph-code ?↩ 'wrap-symbol-face))
+
+#+end_src
+
+Fix a bug on OSX in term mode & zsh (spurious "%" after each command)
+
+#+begin_src emacs-lisp
+
+(when (eq system-type 'darwin)
+  (add-hook 'term-mode-hook
+            (lambda ()
+              (setq buffer-display-table (make-display-table)))))
+
+#+end_src
+
+Make sure underline is positionned at the very bottom.
+
+#+begin_src emacs-lisp
+
+(setq x-underline-at-descent-line nil
+      x-use-underline-position-properties t
+      underline-minimum-offset 10)
+
+#+end_src
+** Benchmark
+
+#+begin_src emacs-lisp
+
+(message "Visual section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+
+* Editing
+
+#+begin_src emacs-lisp
+
+(setq my/section-start-time (current-time))
+
+#+end_src
+
+** Default mode :HOOK:MODE:
+
+Default & initial mode is text.
+
+#+begin_src emacs-lisp
+
+(setq-default initial-major-mode 'text-mode   ; Initial mode is text
+              default-major-mode 'text-mode)  ; Default mode is text
+
+#+end_src
+
+Visual line mode for prog and text modes
+
+#+begin_src emacs-lisp
+
+(add-hook 'text-mode-hook 'visual-line-mode)
+(add-hook 'prog-mode-hook 'visual-line-mode)
+
+#+end_src
+** Tabulations
+
+No tabulation, ever.
+
+#+begin_src emacs-lisp
+
+(setq-default indent-tabs-mode nil        ; Stop using tabs to indent
+              tab-always-indent 'complete ; Indent first then try completions
+              tab-width 4)                ; Smaller width for tab characters
+
+;; Let Emacs guess Python indent silently
+(setq python-indent-guess-indent-offset t
+      python-indent-guess-indent-offset-verbose nil)
+
+#+end_src
+
+** Parenthesis :MODE:
+
+Paren mode for highlighting matcing paranthesis
+
+#+begin_src emacs-lisp
+
+(require 'paren)
+;; (setq show-paren-style 'expression)
+(setq show-paren-style 'parenthesis)
+(setq show-paren-when-point-in-periphery t)
+(setq show-paren-when-point-inside-paren nil)
+(show-paren-mode)
+
+#+end_src
+
+** Highlighting :MODE:
+
+Highlighting of the current line (native mode)
+
+#+begin_src emacs-lisp
+
+(require 'hl-line)
+
+(global-hl-line-mode)
+
+#+end_src
+
+** Benchmark
+
+#+begin_src emacs-lisp
+
+(message "Editing section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+
+* Completion
+#+begin_src emacs-lisp
+
+(setq my/section-start-time (current-time))
+
+#+end_src
+
+** Corfu :MODE:
+
+[[https://github.com/minad/corfu][Corfu]] enhances completion at point with a small completion popup.
+
+#+begin_src emacs-lisp
+
+(require 'corfu)
+
+(setq corfu-cycle t                ; Enable cycling for `corfu-next/previous'
+      corfu-auto t                 ; Enable auto completion
+      corfu-separator ?\s          ; Orderless field separator
+      corfu-quit-at-boundary nil   ; Never quit at completion boundary
+      corfu-quit-no-match nil      ; Never quit, even if there is no match
+      corfu-preview-current nil    ; Disable current candidate preview
+      corfu-preselect-first nil    ; Disable candidate preselection
+      corfu-on-exact-match nil     ; Configure handling of exact matches
+      corfu-echo-documentation nil ; Disable documentation in the echo area
+      corfu-scroll-margin 5)       ; Use scroll margin
+
+(global-corfu-mode)
+
+#+end_src
+
+A few more useful configurations...
+
+#+begin_src emacs-lisp
+
+;; TAB cycle if there are only few candidates
+(setq completion-cycle-threshold 3)
+
+;; Emacs 28: Hide commands in M-x which do not apply to the current mode.
+;; Corfu commands are hidden, since they are not supposed to be used via M-x.
+(setq read-extended-command-predicate
+      #'command-completion-default-include-p)
+
+;; Enable indentation+completion using the TAB key.
+;; completion-at-point is often bound to M-TAB.
+(setq tab-always-indent 'complete)
+
+;; Completion in source blocks
+(require 'cape)
+
+(add-to-list 'completion-at-point-functions 'cape-symbol)
+
+#+end_src
+
+** Orderless
+
+Allow completion based on space-separated tokens, out of order.
+
+#+begin_src emacs-lisp
+
+(require 'orderless)
+  
+(setq completion-styles '(substrinc orderless basic)
+      orderless-component-separator 'orderless-escapable-split-on-space
+      read-file-name-completion-ignore-case t
+      read-buffer-completion-ignore-case t
+      completion-ignore-case t)
+
+#+end_src 
+
+** Benchmark
+
+#+begin_src emacs-lisp
+
+(message "Completion section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+
+* Minibuffer / Modeline
+
+#+begin_src emacs-lisp
+
+(setq my/section-start-time (current-time))
+
+#+end_src
+
+** Consult :BINDING:
+
+We replace some of emacs functions with their consult equivalent
+
+#+begin_src emacs-lisp
+
+(require 'consult)
+
+(setq consult-preview-key nil) ; No live preview
+
+(bind-key "C-x C-r" #'consult-recent-file)
+(bind-key "C-x h"   #'consult-outline)
+(bind-key "C-x b"   #'consult-buffer)
+(bind-key "M-:"     #'consult-complex-command)
+
+#+end_src
+
+For the [[help:consult-goto-line][consult-goto-line]] and ~consult-line~ commands, we define our owns with live preview (independently of the [[help:consult-preview-key][consult-preview-key]])
+
+#+name: my/consult-line
+#+begin_src emacs-lisp
+
+(defun my/consult-line ()
+  "Consult line with live preview"
+  
+  (interactive)
+  (let ((consult-preview-key 'any))
+    (consult-line)))
+
+(bind-key "C-s"   #'my/consult-line)
+
+#+end_src
+#+name: my/consult-goto-line
+#+begin_src emacs-lisp
+
+(defun my/consult-goto-line ()
+  "Consult goto line with live preview"
+  
+  (interactive)
+  (let ((consult-preview-key 'any))
+    (consult-goto-line)))
+
+(bind-key "M-g g"   #'my/consult-goto-line)
+(bind-key "M-g M-g" #'my/consult-goto-line)
+
+#+end_src
+** Vertico :ADVICE:HOOK:BINDING:MODE:FACE:
+
+[[https://github.com/minad/vertico][Vertico]] provides a performant and minimalistic vertical completion UI based on the default completion system but aims to be highly flexible, extensible and modular.
+
+#+begin_src emacs-lisp
+
+(require 'vertico)
+
+(setq vertico-resize nil        ; How to resize the Vertico minibuffer window.
+      vertico-count 10          ; Maximal number of candidates to show.
+      vertico-count-format nil) ; No prefix with number of entries
+
+(vertico-mode)
+
+#+end_src
+
+Tweaking settings
+
+#+begin_src emacs-lisp
+
+(setq vertico-grid-separator
+      #("  |  " 2 3 (display (space :width (1))
+                             face (:background "#ECEFF1")))
+
+      vertico-group-format
+      (concat #(" " 0 1 (face vertico-group-title))
+              #(" " 0 1 (face vertico-group-separator))
+              #(" %s " 0 4 (face vertico-group-title))
+              #(" " 0 1 (face vertico-group-separator
+                          display (space :align-to (- right (-1 . right-margin) (- +1)))))))
+
+(set-face-attribute 'vertico-group-separator nil
+                    :strike-through t)
+(set-face-attribute 'vertico-current nil
+                    :inherit '(nano-strong nano-subtle))
+(set-face-attribute 'completions-first-difference nil
+                    :inherit '(nano-default))
+
+#+end_src
+
+Bind =shift-tab= for completion
+
+#+begin_src emacs-lisp
+
+(bind-key "<backtab>" #'minibuffer-complete vertico-map)
+
+#+end_src
+
+
+Completion-at-point and completion-in-region (see
+https://github.com/minad/vertico#completion-at-point-and-completion-in-region)
+
+#+begin_src emacs-lisp
+
+(setq completion-in-region-function
+      (lambda (&rest args)
+        (apply (if vertico-mode
+                   #'consult-completion-in-region
+                 #'completion--in-region)
+               args)))
+
+#+end_src
+
+Prefix the current candidate
+(See https://github.com/minad/vertico/wiki#prefix-current-candidate-with-arrow)
+
+#+begin_src emacs-lisp
+
+(defun minibuffer-format-candidate (orig cand prefix suffix index _start)
+  (let ((prefix (if (= vertico--index index)
+                    "  "
+                  "   "))) 
+    (funcall orig cand prefix suffix index _start)))
+
+(advice-add #'vertico--format-candidate
+           :around #'minibuffer-format-candidate)
+
+#+end_src
+
+See https://kristofferbalintona.me/posts/vertico-marginalia-all-the-icons-completion-and-orderless/#vertico
+
+#+begin_src emacs-lisp
+
+(defun vertico--prompt-selection ()
+  "Highlight the prompt"
+
+  (let ((inhibit-modification-hooks t))
+    (set-text-properties (minibuffer-prompt-end) (point-max)
+                         '(face (nano-strong nano-salient)))))
+
+#+end_src
+
+See https://github.com/minad/vertico/issues/145
+
+#+begin_src emacs-lisp
+ 
+(defun minibuffer-vertico-setup ()
+
+  (setq truncate-lines t)
+  (setq completion-in-region-function
+        (if vertico-mode
+            #'consult-completion-in-region
+          #'completion--in-region)))
+
+(add-hook 'vertico-mode-hook #'minibuffer-vertico-setup)
+(add-hook 'minibuffer-setup-hook #'minibuffer-vertico-setup)
+
+#+end_src
+** Marginalia :MODE:
+
+Pretty straightforward.
+
+#+begin_src emacs-lisp
+
+(require 'marginalia)
+
+(setq-default marginalia--ellipsis "…"    ; Nicer ellipsis
+              marginalia-align 'right     ; right alignment
+              marginalia-align-offset -1) ; one space on the right
+
+(marginalia-mode)
+
+#+end_src
+** Miniframe :MODE:FACE:BUGFIX:
+
+#+begin_src emacs-lisp
+
+(require 'nano-minibuffer)
+
+(set-face-attribute 'minibuffer-prompt nil
+                    :foreground "black")
+(set-face-attribute 'nano-minibuffer-face nil
+                    :inherit 'highlight)
+(set-face-attribute 'nano-minibuffer-header-face nil
+                    :inherit '(nano-strong nano-subtle)
+                    :foreground "black"
+                    :box `(:line-width (1 . 3)
+                           :color ,(face-background 'nano-subtle)
+                           :style flat))
+
+;; No prompt edit
+(setq minibuffer-prompt-properties '(read-only t
+                                     cursor-intangible t
+                                     face minibuffer-prompt))
+
+;; Recursive minibuffers or else it messes up with mini-frame
+(setq enable-recursive-minibuffers t)
+
+;; Minibuffer mode
+(setq nano-minibuffer-position 'top)
+
+#+end_src
+
+For some unknown reason, I need to redefine here the ~nano-minibuffer--frame-parameters~ function or else emacs complains it cannot call it. I suspect this is linked to native compilation and/or straight.el usage. The *workaround* is to copy the code here but it is far from ideal.
+
+#+begin_src emacs-lisp
+
+(defun nano-minibuffer--frame-parameters ()
+  "Compute minibuffer frame size and position."
+
+  ;; Quite precise computation to align the minibuffer and the
+  ;; modeline when they are both at top position
+  (let* ((edges (window-pixel-edges)) ;; (left top right bottom)
+         (body-edges (window-body-pixel-edges)) ;; (left top right bottom)
+         (left (nth 0 edges)) ;; Take margins into account
+         (top (nth 1 edges)) ;; Drop header line
+         (right (nth 2 edges)) ;; Take margins into account
+         (bottom (nth 3 body-edges)) ;; Drop header line
+         (left (if (eq left-fringe-width 0)
+                   left
+                 (- left (frame-parameter nil 'left-fringe))))
+         (right (nth 2 edges))
+         (right (if (eq right-fringe-width 0)
+                    right
+                  (+ right (frame-parameter nil 'right-fringe))))
+         (border 1)
+         (width (- right left (* 0 border)))
+
+         ;; Window divider mode
+         (width (- width (if (and (bound-and-true-p window-divider-mode)
+                                  (or (eq window-divider-default-places 'right-only)
+                                      (eq window-divider-default-places t))
+                                  (window-in-direction 'right (selected-window)))
+                             window-divider-default-right-width
+                           0)))
+         (y (- top border)))
+
+    (append `((left-fringe . 0)
+              (right-fringe . 0)
+              (user-position . t) 
+              (foreground-color . ,(face-foreground 'nano-minibuffer-face nil 'default))
+              (background-color . ,(face-background 'nano-minibuffer-face nil 'default)))
+            (cond ((and (eq nano-minibuffer-position 'bottom))
+                   `((top . -1)
+                     (left . 0)
+                     (width . 1.0)
+                     (child-frame-border-width . 0)
+                     (internal-border-width . 0)))
+                  (t
+                   `((left . ,(- left border))
+                     (top . ,y)
+                     (width . (text-pixels . ,width))
+                     (child-frame-border-width . ,border)
+                     (internal-border-width . ,border)))))))
+
+#+end_src
+
+#+begin_src emacs-lisp
+
+(nano-minibuffer-mode 1)
+
+#+end_src
+
+** Modeline :HOOK:MODE:FACE:
+
+We're using [[https://github.com/rougier/nano-modeline][nano-modeline]] and modify some settings here.
+
+#+begin_src emacs-lisp
+
+(require 'nano-theme)
+(require 'nano-modeline)
+
+(setq nano-modeline-prefix 'status)
+(setq nano-modeline-prefix-padding 1)
+
+(set-face-attribute 'header-line nil)
+(set-face-attribute 'mode-line nil
+                    :foreground (face-foreground 'nano-subtle-i)
+                    :background (face-foreground 'nano-subtle-i)
+                    :inherit nil
+                    :box nil)
+(set-face-attribute 'mode-line-inactive nil
+                    :foreground (face-foreground 'nano-subtle-i)
+                    :background (face-foreground 'nano-subtle-i)
+                    :inherit nil
+                    :box nil)
+
+(set-face-attribute 'nano-modeline-active nil
+                    :underline (face-foreground 'nano-default-i)
+                    :background (face-background 'nano-subtle)
+                    :inherit '(nano-default-)
+                    :box nil)
+(set-face-attribute 'nano-modeline-inactive nil
+                    :foreground 'unspecified
+                    :underline (face-foreground 'nano-default-i)
+                    :background (face-background 'nano-subtle)
+                    :box nil)
+
+(set-face-attribute 'nano-modeline-active-name nil
+                    :foreground "black"
+                    :inherit '(nano-modeline-active nano-strong))
+(set-face-attribute 'nano-modeline-active-primary nil
+                    :inherit '(nano-modeline-active))
+(set-face-attribute 'nano-modeline-active-secondary nil
+                    :inherit '(nano-faded nano-modeline-active))
+
+(set-face-attribute 'nano-modeline-active-status-RW nil
+                    :inherit '(nano-faded-i nano-strong nano-modeline-active))
+(set-face-attribute 'nano-modeline-active-status-** nil
+                    :inherit '(nano-popout-i nano-strong nano-modeline-active))
+(set-face-attribute 'nano-modeline-active-status-RO nil
+                    :inherit '(nano-default-i nano-strong nano-modeline-active))
+
+(set-face-attribute 'nano-modeline-inactive-name nil
+                    :inherit '(nano-faded nano-strong
+                               nano-modeline-inactive))
+(set-face-attribute 'nano-modeline-inactive-primary nil
+                    :inherit '(nano-faded nano-modeline-inactive))
+
+(set-face-attribute 'nano-modeline-inactive-secondary nil
+                    :inherit '(nano-faded nano-modeline-inactive))
+(set-face-attribute 'nano-modeline-inactive-status-RW nil
+                    :inherit '(nano-modeline-inactive-secondary))
+(set-face-attribute 'nano-modeline-inactive-status-** nil
+                    :inherit '(nano-modeline-inactive-secondary))
+(set-face-attribute 'nano-modeline-inactive-status-RO nil
+                    :inherit '(nano-modeline-inactive-secondary))
+
+(nano-modeline-mode 1)
+#+end_src
+
+
+We set a thin modeline
+
+#+begin_src emacs-lisp
+
+(defun my/thin-modeline ()
+  "Transform the modeline in a thin faded line"
+  
+  (nano-modeline-face-clear 'mode-line)
+  (nano-modeline-face-clear 'mode-line-inactive)
+  (setq mode-line-format (list ""))
+  (setq-default mode-line-format (list ""))
+  (set-face-attribute 'mode-line nil
+                      :inherit 'nano-modeline-inactive
+                      :height 0.1)
+  (set-face-attribute 'mode-line-inactive nil
+                      :inherit 'nano-modeline-inactive
+                      :height 0.1))
+
+(add-hook 'nano-modeline-mode-hook #'my/thin-modeline)
+
+#+end_src
+
+** Benchmark
+
+#+begin_src emacs-lisp
+
+(message "Minibuffer/Modeline section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+
+* Mail :DEFER:
+:PROPERTIES:
+:header-args:emacs-lisp: :prologue "(with-eval-after-load 'mu4e" :epilogue ")"
+:END:
+
+#+begin_src emacs-lisp  :prologue "" :epilogue ""
+
+(setq my/section-start-time (current-time))
+
+#+end_src
+
+** Setup :PERSONAL:
+
+Mu4e doesn't come with an autoload function, we declare it here.
+
+#+begin_src emacs-lisp :prologue "" :epilogue ""
+
+(autoload 'mu4e
+  "/usr/local/Cellar/mu/1.6.10/share/emacs/site-lisp/mu/mu4e/mu4e.el"
+  "Start mu4e daemon and show its main window." t)
+
+#+end_src
+
+Lots of options. Make sure to adapt paths to your system.
+
+#+begin_src emacs-lisp
+
+(setq mu4e-mu-binary "/usr/local/bin/mu"
+      mu4e-maildir "~/Documents/Mail"
+      mu4e-attachment-dir "~/Downloads"
+      mu4e-get-mail-command "/usr/local/bin/mbsync -a"
+
+      mu4e-update-interval 300            ; Update interval (seconds)
+      mu4e-index-cleanup t                ; Cleanup after indexing
+      mu4e-index-update-error-warning t   ; Warnings during update
+      mu4e-hide-index-messages t          ; Hide indexing messages
+      mu4e-index-update-in-background t   ; Background update
+      mu4e-change-filenames-when-moving t ; Needed for mbsync
+      mu4e-index-lazy-check nil           ; Don't be lazy, index everything
+        
+      mu4e-confirm-quit nil
+      mu4e-split-view 'single-window
+
+      mu4e-headers-auto-update nil
+      mu4e-headers-date-format "%d-%m"
+      mu4e-headers-time-format "%H:%M"
+      mu4e-headers-from-or-to-prefix '("" . "To ")
+      mu4e-headers-include-related t
+      mu4e-headers-skip-duplicates t)
+
+#+end_src
+
+How to handle various MIME data.
+
+#+begin_src emacs-lisp :prologue "" :epilogue ""
+
+(require 'mailcap)
+
+(push '((viewer . "open %s 2> /dev/null &")
+        (type . "application/pdf")
+        (test . window-system))
+      mailcap-user-mime-data)
+
+(when (fboundp 'imagemagick-register-types)
+  (imagemagick-register-types))
+
+#+end_src
+
+Some bindings to avoid confirmation for execution (headers and message view)
+
+#+begin_src emacs-lisp
+
+(bind-key "x" (lambda() (interactive) (mu4e-mark-execute-all t)) mu4e-headers-mode-map)
+(bind-key "x" (lambda() (interactive) (mu4e-mark-execute-all t)) mu4e-view-mode-map)
+
+#+end_src
+
+** Accounts
+
+*** General :PERSONAL:
+
+General information about me.
+
+#+begin_src emacs-lisp
+
+;; User name
+(setq user-full-name "Nicolas P. Rougier")
+
+;; Main user mail address
+(setq user-mail-address "nicolas.rougier@inria.fr")
+
+;; Common signature for all accounts.
+(setq mu4e-signature (concat
+  "Nicolas P. Rougier — Institute of Neurodegenerative Diseases\n"
+  "University of Bordeaux — https://www.labri.fr/perso/nrougier\n"))
+
+#+end_src
+
+Because we'll use mu4e-contexts, we reset single account settings.
+
+#+begin_src emacs-lisp
+
+(setq mu4e-contexts nil
+      mu4e-drafts-folder nil
+      mu4e-compose-reply-to-address nil
+      mu4e-compose-signature t
+      mu4e-compose-signature-auto-include t
+      mu4e-sent-folder nil
+      mu4e-trash-folder nil)
+
+#+end_src
+
+#+begin_src emacs-lisp
+
+(setq mu4e-context-policy 'pick-first  ; How to determine context when entering headers view
+      mu4e-compose-context-policy nil) ; Do not modify context when composing
+
+#+end_src
+
+Refile/archive depending on the context (via maildir)
+
+#+begin_src emacs-lisp
+
+(defun my/mu4e-refile-folder (msg)
+  "Contextual refile"
+  
+  (let ((maildir (mu4e-message-field msg :maildir)))
+    (cond
+     ((string-match "inria" maildir) "/inria/archive")
+     ((string-match "gmail" maildir) "/gmail/archive")
+     ((string-match "univ"  maildir) "/univ/archive")
+     (t ""))))
+
+(setq mu4e-refile-folder 'my/mu4e-refile-folder)
+
+#+end_src
+
+*** Inria :PERSONAL:
+
+#+begin_src emacs-lisp
+
+(add-to-list 'mu4e-contexts
+             (make-mu4e-context
+              :name "inria"
+              :enter-func (lambda () (mu4e-message "Entering inria context"))
+              :leave-func (lambda () (mu4e-message "Leaving inria context"))
+              :match-func (lambda (msg)
+                            (when msg (mu4e-message-contact-field-matches msg
+                                                                          :to "nicolas.rougier@inria.fr")))
+              :vars `((user-mail-address . "nicolas.rougier@inria.fr")
+                      (user-full-name . "Nicolas P. Rougier (inria)")
+                      (mu4e-compose-signature . ,mu4e-signature)
+                      (mu4e-sent-folder . "/inria/sent")
+                      (mu4e-trash-folder . "/inria/trash")
+                      (mu4e-drafts-folder . "/inria/drafts")
+                      (mu4e-maildir-shortcuts . (("/inria/inbox"   . ?i)
+                                                 ("/inria/archive" . ?a)
+                                                 ("/inria/sent"    . ?s)))
+                      (smtpmail-smtp-server . "smtp.inria.fr")
+                      (smtpmail-stream-type . starttls)
+                      (smtpmail-smtp-service . 587))))
+
+#+end_src
+
+*** GMail :PERSONAL:
+
+To store the password in OSX keychain:
+
+  =security add-internet-password -l 'smtp.gmail.com -s 'smtp.gmail.com' -a 'nicolas.rougier@gmail.com' -P 587 -r smtp -T Emacs -U -w "password12345"=
+
+#+begin_src emacs-lisp
+
+(add-to-list 'mu4e-contexts
+             (make-mu4e-context
+              :name "gmail"
+              :enter-func (lambda () (mu4e-message "Entering gmail context"))
+              :leave-func (lambda () (mu4e-message "Leaving gmail context"))
+              :match-func (lambda (msg)
+                            (when msg (mu4e-message-contact-field-matches msg
+                                                                          :to "nicolas.rougier@gmail.com")))
+              :vars `((user-mail-address . "nicolas.rougier@gmail.com"  )
+                      (user-full-name . "Nicolas P. Rougier (gmail)" )
+                      ;; don't save messages to Sent Messages,
+                      ;; Gmail/IMAP takes care of this
+                      ;; (mu4e-sent-messages-behavior 'delete)
+                      (mu4e-compose-signature . ,mu4e-signature)
+                      (mu4e-sent-folder . "/gmail/sent")
+                      (mu4e-trash-folder . "/gmail/trash")
+                      (mu4e-drafts-folder . "/gmail/drafts")
+                      (mu4e-maildir-shortcuts . (("/gmail/inbox" . ?i)
+                                                 ("/gmail/archive". ?a)
+                                                 ("/gmail/sent" . ?s)))
+                      (smtpmail-smtp-server . "smtp.gmail.com")
+                      (smtpmail-stream-type . starttls)
+                      (smtpmail-smtp-service . 587))))
+
+#+end_src
+
+*** University :PERSONAL:
+
+#+begin_src emacs-lisp
+
+(add-to-list 'mu4e-contexts
+             (make-mu4e-context
+              :name "University"
+              :enter-func (lambda () (mu4e-message "Entering university context"))
+              :leave-func (lambda () (mu4e-message "Leaving university context"))
+              :match-func (lambda (msg)
+                            (when msg (mu4e-message-contact-field-matches msg
+                                                                          :to "nicolas.rougier@u-bordeaux.fr")))
+              :vars `((user-mail-address . "nicolas.rougier@u-bordeaux.fr"  )
+                      (user-full-name . "Nicolas P. Rougier (university)" )
+                      (mu4e-compose-signature . ,mu4e-signature)
+                      (mu4e-sent-folder . "/univ/sent")
+                      (mu4e-trash-folder . "/univ/trash")
+                      (mu4e-drafts-folder . "/univ/drafts")
+                      (mu4e-maildir-shortcuts . (("/univ/inbox" . ?i)
+                                                 ("/univ/archive" . ?a)
+                                                 ("/univ/sent" . ?s))))))
+
+#+end_src
+
+** Encryption
+
+See https://www.djcbsoftware.nl/code/mu/mu4e/Reading-messages.html
+
+#+begin_src emacs-lisp :prologue "" :epilogue ""
+
+(require 'epg-config)
+
+(setq epg-gpg-program "/usr/local/bin/gpg"  ; What gpg program to use
+      epg-user-id "gpg_key_id"              ; GnuPG ID of your default identity
+      mml2015-use 'epg                      ; The package used for PGP/MIME.
+      mml2015-encrypt-to-self t             ; Add our own key ID to recipient list
+      mml2015-sign-with-sender t)           ; Use message sender to find a key to sign with.
+
+;;(setq epa-file-cache-passphrase-for-symmetric-encryption nil)
+;;(require 'epa-file)
+;;(epa-file-enable)
+;;(setq epa-file-select-keys nil)
+(setq epa-pinentry-mode 'loopback)
+(pinentry-start)
+
+#+end_src
+
+** Read
+
+#+begin_src emacs-lisp
+
+(setq mu4e-show-images t
+      mu4e-use-fancy-chars nil
+      mu4e-view-html-plaintext-ratio-heuristic  most-positive-fixnum
+      mu4e-html2text-command 'mu4e-shr2text
+      shr-use-fonts nil   ; Simple HTML Renderer / no font
+      shr-use-colors nil) ; Simple HTML Renderer / no color
+
+#+end_src
+
+** Write :HOOK:BINDING:
+
+See www.gnu.org/software/emacs/manual/html_node/message/Insertion-Variables.html
+
+#+begin_src emacs-lisp
+
+(setq message-send-mail-function 'smtpmail-send-it
+      message-cite-reply-position 'below
+      message-citation-line-format "%N [%Y-%m-%d at %R] wrote:"
+      message-citation-line-function 'message-insert-formatted-citation-line
+      message-yank-prefix       "> "
+      message-yank-cited-prefix "> "
+      message-yank-empty-prefix "> "
+      message-indentation-spaces 1
+      message-kill-buffer-on-exit t
+
+      mu4e-compose-format-flowed t
+      mu4e-compose-complete-only-personal t
+      mu4e-compose-complete-only-after "2021-01-01" ; Limite address auto-completion
+      mu4e-compose-dont-reply-to-self t
+      mu4e-compose-crypto-reply-policy 'sign-and-encrypt)
+      
+#+end_src
+
+Multi-language flyspell in compose mode
+
+#+begin_src emacs-lisp
+
+(require 'flyspell)
+(require 'guess-language)
+(require 'flyspell-correct-popup)
+
+;; (bind-key "C-;" #'flyspell-popup-wrapper flyspell-mode-map)
+(bind-key "C-;" #'flyspell-popup-correct flyspell-mode-map)
+
+;; Automatically detect language for Flyspell
+(with-eval-after-load 'guess-language  
+    (add-hook 'text-mode-hook #'guess-language-mode)
+    (setq guess-language-langcodes '((en . ("en_GB" "English"))
+                                     (fr . ("fr_FR" "French")))
+          guess-language-languages '(en fr)
+          guess-language-min-paragraph-length 45))
+
+(setq flyspell-generic-check-word-predicate  'mail-mode-flyspell-verify)
+
+#+end_src
+
+#+name: my/mu4e-compose-hook
+#+begin_src emacs-lisp
+
+(defun my/mu4e-compose-hook ()
+  "Settings for message composition."
+
+  (auto-save-mode -1)
+  (turn-off-auto-fill)
+  (set-fill-column 79)
+  (setq flyspell-generic-check-word-predicate
+        'mail-mode-flyspell-verify)
+  (flyspell-mode))
+
+(add-hook 'mu4e-compose-mode-hook #'my/mu4e-compose-hook)
+
+#+end_src
+
+** Bookmarks
+
+#+begin_src emacs-lisp
+
+(setq mu4e-bookmarks
+      '((:name "Unread"
+         :key ?u
+         :show-unread t
+         :query "flag:unread AND NOT flag:trashed")
+
+        (:name "Inbox"
+         :key ?i
+         :show-unread t 
+         :query "m:/inria/inbox or m:/univ/inbox or m:/gmail/inbox")
+
+        (:name "Today"
+         :key ?t
+         :show-unread t 
+         :query "date:today..now")
+
+        (:name "Yesterday"
+         :key ?y
+         :show-unread t
+         :query "date:2d..today and not date:today..now")
+
+        (:name "Last week"
+         :key ?w
+         :hide-unread t 
+         :query "date:7d..now")
+
+        (:name "Flagged"
+         :key ?f
+         :show-unread t 
+         :query "flag:flagged")
+
+        (:name "Sent"
+         :key ?s
+         :hide-unread t 
+         :query "from:Nicolas.Rougier")
+
+        (:name "Drafts"
+         :key ?d
+         :hide-unread t
+         :query "flag:draft")))
+
+#+end_src
+
+** Tags :BINDING:
+
+This provides a tag action inside the mu4e headers view to quickly tag message. Tags are saved in the ~mu4e-tag-history~ variable that is also saved from one session to the other. We use the ~consult-completing-read-multiple~ function to read tags.
+
+#+begin_src emacs-lisp
+
+(defvar mu4e-tag-history '()
+  "Mu4e tag history list.")
+
+(add-to-list 'savehist-additional-variables 'mu4e-tag-history)
+
+(put 'mu4e-tag-history 'history-length 100)
+
+#+end_src
+
+Here is the actual tag action
+
+#+begin_src emacs-lisp
+
+(defun mu4e-tag-read (target msg)
+  "Ask for tags to be added and/or removed."
+
+  (let* ((tags nil)
+         (old-tags (mu4e-message-field msg :tags))
+         (new-tags (consult-completing-read-multiple
+                    "TAGS: "
+                    mu4e-tag-history
+                    nil
+                    nil
+                    (mapconcat #'identity old-tags ",")
+                    'mu4e-tag-history)))
+      (dolist (tag old-tags)
+        (let ((tag (string-trim tag)))
+          (if (and (> (length tag) 0)
+                   (not (member tag new-tags)))
+              (push (concat "-" tag) tags))))
+      (dolist (tag new-tags)
+        (let ((tag (string-trim tag)))
+          (if (and (> (length tag) 0)
+                   (not (member tag old-tags)))
+              (push (concat "+" tag) tags))))
+      (mapconcat #'identity tags ",")))
+
+;; Add the mark to mu4e. If the action does nothing, the header is marked anyway.
+;; I Did not find a way to cancel the marks
+(add-to-list 'mu4e-marks
+             '(tag
+               :char       "g"
+               :prompt     "gtag"
+               :dyn-target mu4e-tag-read
+               :action      (lambda (docid msg target)
+                              (when (> (length target) 0)
+                                  (mu4e-action-retag-message msg target)))))
+
+;; Tell mu4e about the new mark
+;; See https://www.djcbsoftware.nl/code/mu/mu4e/Adding-a-new-kind-of-mark.html 
+(mu4e~headers-defun-mark-for tag)
+
+#+end_src
+
+We bind the tagging with the "g" key in mu4e-headers-mode.
+
+#+begin_src emacs-lisp
+
+(bind-key "g" #'mu4e-headers-mark-for-tag mu4e-headers-mode-map)
+
+#+end_src
+
+** Folding :FACE:
+
+Some face specification for folding.
+
+#+begin_src emacs-lisp
+
+(require 'mu4e-folding)
+
+(set-face-background 'mu4e-folding-child-folded-face
+                     (face-background 'highlight))
+
+(set-face-background 'mu4e-folding-child-unfolded-face
+                     (face-background 'highlight))
+
+(set-face-background 'mu4e-folding-root-folded-face
+                     (face-background 'default))
+
+(set-face-background 'mu4e-folding-root-unfolded-face
+                     (face-background 'nano-subtle))
+
+#+end_src
+
+** Layout :HOOK:BINDING:
+
+A custom multiline headers view for mu4e.
+
+#+name: my/mu4e-headers-multiline
+#+begin_src emacs-lisp
+
+(defun my/mu4e-headers-multiline (msg)
+  "A multiline headers mode."
+  
+  (let* ((sender  (my/mu4e-get-sender msg))
+         (date (mu4e-message-field msg :date))
+         (date (my/date-relative date))
+         (subject (mu4e-message-field msg :subject))
+         (subject (truncate-string-to-width subject (- (window-width) 16) nil nil "…"))
+         (flagged   (memq 'flagged   (mu4e-message-field msg :flags)))
+         (attach    (memq 'attach    (mu4e-message-field msg :flags)))
+         (unread    (memq 'unread    (mu4e-message-field msg :flags)))
+         (replied   (memq 'replied   (mu4e-message-field msg :flags)))
+         (encrypted (memq 'encrypted (mu4e-message-field msg :flags)))
+         (draft     (memq 'draft     (mu4e-message-field msg :flags)))
+         (thread (mu4e-message-field msg :thread))
+         (related (and thread (plist-get thread :related)))
+         (prefix (mu4e~headers-thread-prefix thread))
+         (root (plist-get thread :root))
+         (orphan (plist-get thread :orphan))
+         (first-child (plist-get thread :first-child))
+         (has-child (plist-get thread :has-child))
+         (level (plist-get thread :level))
+         (root (or root (and orphan (or first-child has-child))))
+         (child (and thread (not root)))
+         (tags      (mu4e-message-field msg :tags))
+         (top-spacing (if child                +0.000 -0.250))
+         (bot-spacing (if (and root has-child) +0.250 +0.250))
+         (unread-mark (propertize (cond (unread               " ●")
+                                        ((and root has-child) " ")
+                                        (t                    "  "))
+                                  'display `(raise ,top-spacing)))
+         (one-line (and child mu4e-headers-include-related))
+
+         (face-sender (cond ((and root related)   '(nano-strong nano-faded))
+                             (root                '(nano-strong nano-default))
+                             ((and child related) '(:inherit nano-faded :height 140))
+                             (child               '(:inherit nano-default :height 140))
+                             (t                   '(nano-default))))
+         (face-subject (cond (related '(:inherit nano-faded))
+                             (t       '(:inherit nano-default))))
+         (face-tags (cond (related '(:inherit (nano-faded)              :height 120))
+                          (t       '(:inherit (nano-popout nano-strong) :height 120))))
+         (face-date    (cond (t '(:inherit nano-faded :height 140))))
+         
+         (icons (string-join
+                 `(,@(if draft   `( ,(propertize "" 'face 'nano-faded)))
+                   ,@(if attach  `( ,(propertize "" 'face 'nano-faded)))
+                   ,@(if flagged `( ,(propertize "" 'face 'nano-salient)))
+                   ) " ")))
+
+    (concat
+
+     ;; Separaction line between threads
+     (when root
+       (concat
+        (propertize " "
+                    'mu4e-root t
+                    'display `((margin left-margin) "  "))
+        (propertize "-" 'display "\n"
+                        'face '(:extend t
+                                :strike-through t
+                                :inherit nano-subtle-i))
+               "  "))
+
+     ;; Children are always indented (relatively to root)
+     (when (and child one-line)
+       (concat 
+        (propertize "-" 'face face-sender)))
+
+     ;; Unread mark appears in the left margin
+     (propertize " " 'face (if unread 'nano-default face-sender)
+                     'display `((margin left-margin) ,unread-mark))
+
+     ;; Sender
+     (cond (one-line     (propertize (concat prefix sender)
+                                     'face face-sender
+                                     'display `(raise ,top-spacing)))
+           ((and root has-child) (propertize (concat " " sender)
+                                             'face face-sender
+                                             'display `(raise ,top-spacing)))
+           (t (propertize sender 'face face-sender
+                                 'display `(raise ,top-spacing))))
+     
+     " "
+     ;; Replied
+     (when replied
+         (propertize " " 'face face-sender
+                          'display `(raise ,top-spacing)))
+
+     ;; In one line mode (children), icons are displayed next to sender
+     (when one-line
+         (concat (propertize icons 'display `(raise ,top-spacing)) " "))
+
+     ;; Tags next to sender
+     (when tags
+       (concat 
+        (propertize " " 'face face-tags
+                         'display `(raise ,top-spacing))
+        (mapconcat #'(lambda (tag)
+                       (propertize tag 'face face-tags
+                                       'display `(raise ,top-spacing)))
+                   tags (propertize "," 'face face-tags
+                                       'display `(raise ,top-spacing)))))
+
+     ;; Spacing to have date aligned on the right
+     (propertize " " 'display `(space :align-to (- right 1 ,(* 1.0 (length date)))))
+
+     ;; Date
+     (propertize date 'face face-date
+                      'display `(raise ,top-spacing))
+
+     ;; When not a child
+     (when (or root (not mu4e-headers-include-related))
+       (concat
+
+        ;; Second line. We use a display property such that hl-line-mode works correctly.
+        (propertize " " 'display "\n")
+
+        ;; Blank spaces in the margin (for nice hl-line-mode)
+        (propertize " " 'face '(nano-strong nano-salient)
+                        'display `((margin left-margin) "  "))
+
+        ;; Indentation (to compensate for the virtual "\n" we introduced before)
+        (propertize "  ")
+
+        ;; Align subject and sender when this is a child
+        (when (and one-line child)
+            (propertize "  " 'face 'nano-faded))
+
+        ;; Subject
+        (propertize subject 'display `(raise ,bot-spacing)
+                            'face face-subject)
+        ;; Spacing to have icons aligned on the right
+        (propertize " " 'display `(space :align-to (- right ,(length icons) 1)))
+
+        ;; Icons on the right
+        (propertize icons 'display `(raise ,bot-spacing)))))))
+
+
+#+end_src
+
+Then, we redefine thread symbols (we'll mostly manage ourselves).
+
+#+begin_src emacs-lisp
+
+(setq mu4e-headers-thread-root-prefix          '(""    . "")
+      mu4e-headers-thread-first-child-prefix   '(" "   . " ")
+      mu4e-headers-thread-child-prefix         '(" "   . " ")
+      mu4e-headers-thread-last-child-prefix    '(" "   . " ")
+      mu4e-headers-thread-connection-prefix    '(" |"  . "  ")
+      mu4e-headers-thread-blank-prefix         '(""    . "")
+      mu4e-headers-thread-orphan-prefix        '(" "   . "")
+      mu4e-headers-thread-single-orphan-prefix '(""    . "")
+      mu4e-headers-thread-duplicate-prefix     '("="   . "="))
+
+#+end_src
+
+And we install the new header.
+
+#+begin_src emacs-lisp
+
+(add-to-list 'mu4e-header-info-custom
+             '(:multiline . (:name "multiline"
+                             :shortname ""
+                             :function my/mu4e-headers-multiline)))
+(setq mu4e-headers-fields  '((:multiline . nil)))
+
+#+end_src
+
+Because the multiline header view uses margin to show new mail, we have to make sure there are always margin in the headers view. We also make the hl-line more salient.
+
+#+name: my/mu4e-headers-setup
+#+begin_src emacs-lisp
+
+(defun my/mu4e-headers-mode-setup ()
+
+  (with-current-buffer "*mu4e-headers*"
+    (set-face-attribute 'mu4e-header-highlight-face nil
+                        :inherit 'nano-salient-i)
+    (setq-local left-margin-width 2)
+    (set-window-buffer nil "*mu4e-headers*")))
+
+(add-hook 'mu4e-headers-found-hook #'my/mu4e-headers-mode-setup)
+(add-hook 'mu4e-headers-mode-hook  #'my/mu4e-headers-mode-setup)
+
+#+end_src
+
+Since a header can now be displayed over several consecutive lines, we need to remap prev/next line such as to use mu4e prev/next functions (that works properly with multiline headers).
+
+#+begin_src emacs-lisp
+
+(bind-key [remap next-line] #'mu4e-headers-next mu4e-headers-mode-map)
+(bind-key [remap previous-line] #'mu4e-headers-prev mu4e-headers-mode-map)
+
+#+end_src
+
+A special highlight function for root headers and this headers view
+
+#+begin_src emacs-lisp
+
+(setq hl-line-range-function #'my/mu4e-hl-line-move)
+(defun my/mu4e-hl-line-move ()
+  (let ((root (get-text-property
+               (min (point-max) (+ (line-beginning-position) 9))
+               'mu4e-root)))
+    (if root
+        (cons (+ (line-beginning-position) 11)
+              (line-beginning-position 2))
+      (cons (line-beginning-position)
+            (line-beginning-position 2)))))
+#+end_src
+
+A special overlay function for folding that takes the multiline root header into account
+
+#+begin_src emacs-lisp
+
+(defun mu4e-folding--make-root-overlay (beg end)
+  "Create the root overlay."
+
+  (let ((root (get-text-property
+               (min (point-max) (+ (line-beginning-position) 9))
+               'mu4e-root)))
+    (if root
+        (make-overlay (+ (line-beginning-position) 11) end)
+      (make-overlay beg end))))
+
+#+end_src
+** Dashboard
+
+Provide a [[help:mu4e-dashboard][mu4e-dashboard]] command that opens the mu4e dashboard on the left side.
+
+#+name: mu4e-dashboard
+#+begin_src emacs-lisp
+
+(require 'mu4e-dashboard)
+(require 'svg-lib)
+
+(defun mu4e-dashboard ()
+  "Open the mu4e dashboard on the left side."
+  
+  (interactive)
+  (with-selected-window
+      (split-window (selected-window) -34 'left)
+
+    (find-file (expand-file-name "mu4e-dashboard.org" user-emacs-directory))
+    (mu4e-dashboard-mode)
+    (hl-line-mode)
+    (set-window-dedicated-p nil t)
+    (defvar svg-font-lock-keywords
+      `(("\\!\\([\\ 0-9]+\\)\\!"
+         (0 (list 'face nil 'display (svg-font-lock-tag (match-string 1)))))))
+    (defun svg-font-lock-tag (label)
+      (svg-lib-tag label nil
+                   :stroke 0 :margin 1 :font-weight 'bold
+                   :padding (max 0 (- 3 (length label)))
+                   :foreground (face-foreground 'nano-popout-i)
+                   :background (face-background 'nano-popout-i)))
+    (push 'display font-lock-extra-managed-props)
+    (font-lock-add-keywords nil svg-font-lock-keywords)
+    (font-lock-flush (point-min) (point-max))))
+
+#+end_src
+
+** Benchmark
+
+#+begin_src emacs-lisp  :prologue "" :epilogue ""
+
+(message "Mail section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+
+* Org :DEFER:
+:PROPERTIES:
+:header-args:emacs-lisp: :prologue "(with-eval-after-load 'org" :epilogue ")"
+:END:
+
+#+begin_src emacs-lisp  :prologue "" :epilogue ""
+
+(setq my/section-start-time (current-time))
+
+#+end_src
+
+** General :HOOK:
+
+#+begin_src emacs-lisp
+
+(setq-default org-directory "~/Documents/org"
+              org-ellipsis " …"              ; Nicer ellipsis
+              org-tags-column 1              ; Tags next to header title
+              org-hide-emphasis-markers t    ; Hide markers
+              org-cycle-separator-lines 2    ; Number of empty lines between sections
+              org-use-tag-inheritance nil    ; Tags ARE NOT inherited 
+              org-use-property-inheritance t ; Properties ARE inherited
+              org-indent-indentation-per-level 2 ; Indentation per level
+              org-link-use-indirect-buffer-for-internals t ; Indirect buffer for internal links
+              org-return-follows-link nil    ; Follow links when hitting return
+              org-image-actual-width nil     ; Resize image to window width
+              org-indirect-buffer-display 'other-window ; Tab on a task expand it in a new window
+              org-outline-path-complete-in-steps nil) ; No steps in path display
+
+#+end_src
+
+Better latex preview (see https://stackoverflow.com/questions/30151338)
+
+#+begin_src emacs-lisp
+
+(setq org-latex-create-formula-image-program 'dvisvgm)
+
+#+end_src
+
+We adapt fill functions according to the indent level.
+
+#+begin_src emacs-lisp
+
+ (defun my/calc-offset-on-org-level ()
+   "Calculate offset (in chars) on current level in org mode file."
+
+   (* (or (org-current-level) 0) org-indent-indentation-per-level))
+
+ (defun my/org-fill-paragraph (&optional justify region)
+   "Calculate apt fill-column value and fill paragraph."
+  
+   (let* ((fill-column (- fill-column (my/calc-offset-on-org-level))))
+     (org-fill-paragraph justify region)))
+
+ (defun my/org-auto-fill-function ()
+   "Calculate apt fill-column value and do auto-fill"
+  
+   (let* ((fill-column (- fill-column (my/calc-offset-on-org-level))))
+     (org-auto-fill-function)))
+
+ (defun my/org-mode-hook ()
+   (setq fill-paragraph-function #'my/org-fill-paragraph
+         normal-auto-fill-function #'my/org-auto-fill-function))
+
+ (add-hook 'org-load-hook 'my/org-mode-hook)
+ (add-hook 'org-mode-hook 'my/org-mode-hook)
+
+#+end_src
+
+** Babel
+
+#+begin_src emacs-lisp
+
+(setq-default org-src-fontify-natively t         ; Fontify code in code blocks.
+              org-adapt-indentation nil          ; Adaptive indentation
+              org-src-tab-acts-natively t        ; Tab acts as in source editing
+              org-confirm-babel-evaluate nil     ; No confirmation before executing code
+              org-edit-src-content-indentation 0 ; No relative indentation for code blocks
+              org-fontify-whole-block-delimiter-line t) ; Fontify whole block
+
+#+end_src
+
+** Benchmark
+
+#+begin_src emacs-lisp  :prologue "" :epilogue ""
+
+(message "Org section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+
+* Agenda :DEFER:
+:PROPERTIES:
+:header-args:emacs-lisp: :prologue "(with-eval-after-load 'org-agenda" :epilogue ")"
+:END:
+
+#+begin_src emacs-lisp :prologue "" :epilogue ""
+
+(setq my/section-start-time (current-time))
+
+#+end_src
+
+** General
+
+Load libraries.
+
+#+begin_src emacs-lisp
+
+(require 'org-agenda)
+(require 'org-agenda-property)
+
+#+end_src
+
+Open agenda(s)
+
+#+begin_src emacs-lisp :prologue "" :epilogue ""
+
+(bind-key "C-c a" #'org-agenda)
+
+#+end_src
+
+Files
+
+#+begin_src emacs-lisp
+
+(setq org-agenda-files (list "~/Documents/org/agenda.org"
+                             "~/Documents/org/students.org"
+                             "~/Documents/org/todo.org"
+                             "~/Documents/org/inbox.org")
+      org-agenda-diary-file (expand-file-name "diary" user-emacs-directory))
+
+#+end_src
+
+Settings
+
+#+begin_src emacs-lisp
+
+(setq org-agenda-window-setup 'current-window
+      org-agenda-restore-windows-after-quit t
+      org-agenda-show-all-dates nil
+      org-agenda-time-in-grid t
+      org-agenda-show-current-time-in-grid t
+      org-agenda-start-on-weekday 1
+      org-agenda-span 7
+      org-agenda-hide-tags-regexp "." ; No tags
+    ; org-agenda-hide-tags-regexp nil) ; All tags
+      org-agenda-tags-column 0
+    ; org-agenda-tags-column -79)      ; Left aling
+      org-agenda-block-separator nil
+      org-agenda-category-icon-alist nil
+      org-agenda-skip-deadline-if-done t
+      org-agenda-skip-scheduled-if-done t
+      org-agenda-sticky t)
+
+#+end_src
+
+Prefix format
+
+#+begin_src emacs-lisp
+
+(setq org-agenda-prefix-format
+      '((agenda . "%i %?-12t%s")
+        (todo .   "%i")
+        (tags .   "%i")
+        (search . "%i")))
+
+#+end_src
+
+Sorting strategy
+
+#+begin_src emacs-lisp
+
+(setq org-agenda-sorting-strategy
+      '((agenda deadline-down scheduled-down todo-state-up time-up
+                habit-down priority-down category-keep)
+        (todo   priority-down category-keep)
+        (tags   timestamp-up priority-down category-keep)
+        (search category-keep)))
+
+#+end_src
+
+Minimal time grid
+
+#+begin_src emacs-lisp
+
+(setq org-agenda-time-grid
+      '((daily today require-timed)
+        ()
+        "......" "----------------"))
+
+(setq org-agenda-current-time-string "   now")
+
+#+end_src
+
+A small function to cancel a meeting
+
+#+begin_src emacs-lisp
+
+(defun my/org-cancel-meeting ()
+  (interactive)
+  (org-entry-put (point) "CATEGORY" "cancelled")
+  (org-entry-put (point) "NOTE" "Cancelled")
+  (org-set-tags ":CANCELLED:"))
+
+#+end_src
+
+** Holidays :HOOK:PERSONAL:
+
+#+begin_src emacs-lisp
+
+(require 'cal-iso)
+(require 'holidays)
+
+(defvar french-holidays nil
+  "French holidays")
+
+(setq french-holidays
+      `((holiday-fixed 1 1 "New year's Day")
+	    (holiday-fixed 5 1 "Labour Day")
+	    (holiday-fixed 5 8 "Victory in Europe Day")
+	    (holiday-fixed 7 14 "Bastille day")
+	    (holiday-fixed 8 15 "Assumption of Mary")
+	    (holiday-fixed 11 11 "Armistice 1918")
+	    (holiday-fixed 11 1 "All Saints' Day")
+	    (holiday-fixed 12 25 "Christmas Day")
+	    (holiday-easter-etc 0 "Easter Sunday")
+        (holiday-easter-etc 1 "Easter Monday")
+        (holiday-easter-etc 39 "Ascension Day")
+        (holiday-easter-etc 50 "Whit Monday")
+        (holiday-sexp
+         '(if (equal
+               (holiday-easter-etc 49)
+               (holiday-float 5 0 -1 nil))
+              (car (car (holiday-float 6 0 1 nil)))
+            (car (car (holiday-float 5 0 -1 nil))))
+         "Mother's Day")))
+
+(setq calendar-holidays french-holidays     ; French holidays
+      calendar-week-start-day 1             ; Week starts on Monday
+      calendar-mark-diary-entries-flag nil) ; Do not show diary entries
+
+; Mark today in calendar
+(add-hook 'calendar-today-visible-hook  #'calendar-mark-today)
+
+#+end_src
+
+Week day name with holidays 
+
+#+name: my/org-agenda-format-date
+#+begin_src emacs-lisp
+
+(defun my/org-agenda-format-date (date)
+  "Org agenda date format displaying holidays"
+  (let* ((dayname (calendar-day-name date))
+	     (day (cadr date))
+	     (month (car date))
+	     (monthname (calendar-month-name month))
+	     (year (nth 2 date))
+         (holidays (calendar-check-holidays date)))
+    (concat "\n"
+            dayname " "
+            (format "%d " day)
+            monthname " "
+            (format "%d" year)
+            (if holidays (format " (%s)" (nth 0 holidays)))
+            "\n")))
+
+(setq org-agenda-format-date #'my/org-agenda-format-date)
+
+#+end_src
+
+** Daily agenda :HOOK:ADVICE:BINDING:
+
+The daily agenda
+
+#+begin_src emacs-lisp
+
+(add-to-list 'org-agenda-custom-commands
+             '("a" "Agenda"
+               ((agenda "Agenda"
+                        ((org-agenda-todo-keyword-format "%s")
+                         (org-agenda-skip-deadline-if-done nil)
+                         (org-deadline-warning-days 3)
+                         (org-agenda-overriding-header nil))))))
+
+#+end_src
+
+Some decorations for the agenda
+
+#+name: my/org-agenda-highlight-todo
+#+begin_src emacs-lisp
+
+(defun my/org-agenda-highlight-todo (x)
+  (let* ((done (string-match-p (regexp-quote ":DONE:") x))
+         (canceled (string-match-p (regexp-quote "~") x))
+         (x (replace-regexp-in-string ":TODO:" "" x))
+         (x (replace-regexp-in-string ":DONE:" "" x))
+         (x (replace-regexp-in-string "~" "" x))
+         (x (if (and (boundp 'org-agenda-dim) org-agenda-dim)
+                (propertize x 'face 'nano-faded) x))
+         (x (if done (propertize x 'face 'nano-faded) x))
+         (x (if canceled (propertize x 'face 'nano-faded) x)))
+       ; (x (if canceled (propertize x 'face '(:strike-through t)) x)))
+    x))
+
+(advice-add 'org-agenda-highlight-todo
+            :filter-return #'my/org-agenda-highlight-todo)
+
+#+end_src
+
+Timestamp tags for the agenda (bold means inverse video below):
+
+now        -> *now*
+9:00       -> *9h00*
+9:30-10:00 -> 9h30 | *30mn*
+           -> ANYTIME
+
+#+name: svg-tag-timestamp
+#+begin_src emacs-lisp
+
+(require 'svg-lib)
+(require 'svg-tag-mode)
+ 
+(defun my/svg-tag-timestamp (&rest args)
+  "Create a timestamp SVG tag for the time at point."
+  
+  (interactive)
+  (let ((inhibit-read-only t))
+
+    (goto-char (point-min))
+    (while (search-forward-regexp
+            "\\(\([0-9]/[0-9]\):\\)" nil t)
+              (set-text-properties (match-beginning 1) (match-end 1)
+                             `(display ,(svg-tag-make "ANYTIME"
+                                                      :face 'nano-faded
+                                                      :inverse nil
+                                                      :padding 3 :alignment 0))))
+
+    (goto-char (point-min))
+    (while (search-forward-regexp
+            "\\([0-9]+:[0-9]+\\)\\(\\.+\\)" nil t)
+
+              (set-text-properties (match-beginning 1) (match-end 2)
+                             `(display ,(svg-tag-make (match-string 1)
+                                                       :face 'nano-faded
+                                                       :margin 4 :alignment 0))))
+
+    (goto-char (point-min))
+    (while (search-forward-regexp
+            "\\([0-9]+:[0-9]+\\)\\(\\.*\\)" nil t)
+
+              (set-text-properties (match-beginning 1) (match-end 2)
+                             `(display ,(svg-tag-make (match-string 1)
+                                                      :face 'nano-default
+                                                      :inverse t
+                                                      :margin 4 :alignment 0))))
+    (goto-char (point-min))
+    (while (search-forward-regexp
+            "\\([0-9]+:[0-9]+\\)\\(-[0-9]+:[0-9]+\\)" nil t)
+      (let* ((t1 (parse-time-string (match-string 1)))
+             (t2 (parse-time-string (substring (match-string 2) 1)))
+             (t1 (+ (* (nth 2 t1) 60) (nth 1 t1)))
+             (t2 (+ (* (nth 2 t2) 60) (nth 1 t2)))
+             (d  (- t2 t1)))
+
+        (set-text-properties (match-beginning 1) (match-end 1)
+                                `(display ,(svg-tag-make (match-string 1)
+                                                         :face 'nano-faded
+                                                         :crop-right t)))
+        ;; 15m: ¼, 30m:½, 45m:¾
+        (if (< d 60)
+             (set-text-properties (match-beginning 2) (match-end 2)
+                                  `(display ,(svg-tag-make (format "%2dm" d)
+                                                           :face 'nano-faded
+                                                           :crop-left t :inverse t)))
+           (set-text-properties (match-beginning 2) (match-end 2)
+                                `(display ,(svg-tag-make (format "%1dH" (/ d 60))
+                                                         :face 'nano-faded
+                                                         :crop-left t :inverse t
+                                                         :padding 2 :alignment 0))))))))
+
+#+end_src
+
+
+#+begin_src emacs-lisp
+
+(add-hook 'org-agenda-mode-hook #'my/svg-tag-timestamp)
+(advice-add 'org-agenda-redo :after #'my/svg-tag-timestamp)
+
+#+end_src
+
+** Tasks agenda
+
+A custom date format function using svg tags (progress pies) for the task agenda.
+
+#+name: my/org-agenda-custom-date
+#+begin_src emacs-lisp
+
+(defun my/org-agenda-custom-date ()
+  (interactive)
+  (let* ((timestamp (org-entry-get nil "TIMESTAMP"))
+         (timestamp (or timestamp (org-entry-get nil "DEADLINE"))))
+    (if timestamp
+        (let* ((delta (- (org-time-string-to-absolute (org-read-date nil nil timestamp))
+                         (org-time-string-to-absolute (org-read-date nil nil ""))))
+               (delta (/ (+ 1 delta) 30.0))
+               (face (cond ;; ((< delta 0.25) 'nano-popout)
+                           ;; ((< delta 0.50) 'nano-salient)
+                           ((< delta 1.00) 'nano-default)
+                           (t 'nano-faded))))
+          (concat
+           (propertize " " 'face nil
+                       'display (svg-lib-progress-pie
+                                 delta nil
+                                 :background (face-background face nil 'default)
+                                 :foreground (face-foreground face)
+                                 :margin 0 :stroke 2 :padding 1))
+           " "
+           (propertize
+            (format-time-string "%d/%m" (org-time-string-to-time timestamp))
+            'face 'nano-popout)))
+      "     ")))
+
+#+end_src
+
+The task agenda
+
+#+begin_src emacs-lisp
+
+(add-to-list 'org-agenda-custom-commands
+        '("x" "Tasks"
+          ((todo "TODO" ;; "PROJECT"
+                 ( (org-agenda-todo-keyword-format ":%s:")
+                   (org-agenda-prefix-format '((todo   . " ")))
+                   (org-agenda-skip-function '(org-agenda-skip-entry-if 'timestamp))
+                   (org-agenda-overriding-header (propertize " Todo \n" 'face 'nano-strong))))
+
+           (tags "+TALK+TIMESTAMP>=\"<now>\""
+                 ((org-agenda-span 90)
+                  (org-agenda-max-tags 5)
+                  (org-agenda-prefix-format '((tags   . " %(my/org-agenda-custom-date) ")))
+                  (org-agenda-overriding-header "\n Upcoming talks\n")))
+
+           (tags "TEACHING+TIMESTAMP>=\"<now>\""
+                 ((org-agenda-span 90)
+                  (org-agenda-max-tags 5)
+                  (org-agenda-prefix-format '((tags   . " %(my/org-agenda-custom-date) ")))
+                  (org-agenda-overriding-header "\n Upcoming lessons\n")))
+
+           (tags "TRAVEL+TIMESTAMP>=\"<now>\""
+                 ((org-agenda-span 90)
+                  (org-agenda-max-tags 5)
+                  (org-agenda-prefix-format '((tags .  " %(my/org-agenda-custom-date) ")))
+                  (org-agenda-overriding-header "\n Upcoming travels\n")))
+
+           (tags "DEADLINE>=\"<today>\""
+                  ((org-agenda-span 90)
+                   (org-agenda-max-tags 5)
+                   (org-agenda-prefix-format '((tags .  " %(my/org-agenda-custom-date) ")))
+                   (org-agenda-overriding-header "\n Upcoming deadlines\n"))))))
+
+#+end_src
+
+** Update :TIMER:
+
+We install a time to refresh the daily agenda (a) at regular intervals such that the current time is up to date.
+
+#+begin_src emacs-lisp
+
+(defvar my/org-agenda-update-delay 60)
+(defvar my/org-agenda-update-timer nil)
+
+(defun my/org-agenda-update ()
+  "Refresh daily agenda view"
+  
+  (when my/org-agenda-update-timer
+    (cancel-timer my/org-agenda-update-timer))
+  
+  (let ((window (get-buffer-window "*Org Agenda(a)*" t)))
+    (when window
+      (with-selected-window window
+        (let ((inhibit-message t))
+          (org-agenda-redo)))))
+
+  (setq my/org-agenda-update-timer
+    (run-with-idle-timer
+     (time-add (current-idle-time) my/org-agenda-update-delay)
+     nil
+     'my/org-agenda-update)))
+
+(run-with-idle-timer my/org-agenda-update-delay t 'my/org-agenda-update)
+
+#+end_src
+
+** Capture :ADVICE:
+
+#+begin_src emacs-lisp
+
+(setq org-capture-templates
+      '(("i" "Inbox"  entry   (file "inbox.org")
+         "* TODO %?Task :INBOX:\n")
+
+        ("m" "Meeting" entry  (file+headline "agenda.org" "Future")
+         "* %?Meeting <%<%Y-%m-%d %a 12:00-13:00>>"
+         :empty-lines-after 1)))
+      
+#+end_src
+
+** Navigation :ADVICE:
+
+The default [[help:org-agenda-goto][org-agenda-goto]], which is used when =tab= key is pressed or when follow mode (F) is active open a window at a non specific place. Here, we make sure the window is opened where we want. In this case, this is below the agenda window.
+
+#+begin_src emacs-lisp
+
+(defun my/org-agenda-goto (buffer args)
+  "Open a headline in a window below the current window"
+  
+  (setq-local mode-line-format nil)
+  (select-window (or (window-in-direction 'below (selected-window))
+                     (split-window nil -4 'below)))
+  (switch-to-buffer buffer)
+  (setq-local header-line-format
+              '((:eval
+                 (let ((nano-modeline-prefix 'none)
+                       (nano-modeline-prefix-padding 0)
+                       (outline-path (org-with-point-at (org-get-at-bol'org-marker)
+                                       (org-display-outline-path nil nil " » " t))))
+                   (nano-modeline-render
+                    ""
+                    (file-name-nondirectory
+                     (buffer-file-name (buffer-base-buffer)))
+                    (format "/ %s" (substring-no-properties outline-path))
+                    "")))))
+  (selected-window))
+
+#+end_src
+
+Install the new function as an advice around [[help:org-agenda-goto][org-agenda-goto]].
+
+#+begin_src emacs-lisp
+
+(define-advice org-agenda-goto (:around (orig-fn &rest args) "my/org-agenda-goto")
+  (let ((display-buffer-overriding-action '(my/org-agenda-goto)))
+    (apply orig-fn args)))
+
+#+end_src
+
+Finally, we disable [[help:org-agenda-show-outline-path][org-agenda-show-outline-path]] since this is now redundant with the header line.
+
+#+begin_src emacs-lisp
+
+(setq org-agenda-show-outline-path nil)
+
+#+end_src
+
+** Nano agenda :BINDING:
+
+#+header: :prologue "(with-eval-after-load 'org" :epilogue ")"
+#+begin_src emacs-lisp
+
+(require 'nano-agenda)
+
+(bind-key "C-n" #'nano-agenda)
+
+#+end_src
+
+** Benchmark
+
+#+begin_src emacs-lisp  :prologue "" :epilogue ""
+
+(message "Agenda section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+
+* Versioning
+
+** Magit :ADVICE:HOOK:
+
+Prevent magit from writing in the header line.
+
+#+begin_src emacs-lisp
+
+(advice-add 'magit-set-header-line-format :override #'ignore)
+
+#+end_src
+
+Add fringe on the left side of magit windows such that we can
+highlight region using the fringe.
+
+#+begin_src emacs-lisp
+
+(add-hook 'magit-mode-setup-hook
+          #'(lambda ()
+              (interactive)
+              (set-window-fringes nil (* 2 (window-font-width)) 0)))
+
+#+end_src
+* News :DEFER:
+:PROPERTIES:
+:header-args:emacs-lisp: :prologue "(with-eval-after-load 'elfeed" :epilogue ")"
+:END:
+
+
+#+begin_src emacs-lisp  :prologue "" :epilogue ""
+
+(setq my/section-start-time (current-time))
+
+#+end_src
+
+** Read :HOOK:BINDING:
+
+Alternative print entry function using [[https://github.com/rougier/svg-tag-mode][svg-tag-mode]].
+
+#+begin_src emacs-lisp
+
+(require 'elfeed)
+(require 'svg-tag-mode)
+
+(defun my/elfeed-search-print-entry (entry)
+  "Alternative printing of elfeed entries using SVG tags."
+  
+  (let* ((date (elfeed-search-format-date (elfeed-entry-date entry)))
+         (title (or (elfeed-meta entry :title)
+                    (elfeed-entry-title entry) ""))
+         (unread (member 'unread (elfeed-entry-tags entry)))
+         (feed (elfeed-entry-feed entry))
+         (feed-title (when feed
+                       (or (elfeed-meta feed :title)
+                           (elfeed-feed-title feed))))
+         (title-face (if unread 'nano-default 'nano-faded))
+         (date-face (if unread 'nano-salient 'nano-faded))
+         (feed-title-face (if unread 'nano-strong '(nano-strong nano-faded)))
+         (tag-face (if unread 'nano-popout 'nano-faded))
+         (tags (mapcar #'symbol-name (elfeed-entry-tags entry)))
+         (tags (delete "unread" tags))
+         (tags-svg (mapconcat
+                    (lambda (s)
+                      (propertize (concat (upcase s) " ")
+                                  'display (svg-tag-make (upcase s)
+                                                         :margin 0
+                                                         :padding 1
+                                                         :inverse 1
+                                                         :face tag-face)))
+                    tags " "))
+         (left (concat
+                (when feed-title
+                  (propertize feed-title 'face feed-title-face))
+                " " tags-svg " "
+                (propertize title 'face title-face 'kbd-help title)))
+         (right (propertize date 'face date-face)))
+    (insert (my/string-join -1 left right))))
+
+#+end_src
+
+Elfeed setup.
+
+#+begin_src emacs-lisp
+
+(setq elfeed-search-title-max-width 80    ; Maximum titles width
+      elfeed-search-title-min-width 40    ; Minimum titles width
+      elfeed-search-trailing-width 24     ; Space reserved for feed & tag
+      elfeed-search-filter                ; Default filter
+          "@1-weeks-ago +unread"          
+      elfeed-search-print-entry-function  ; Alternative print function
+           #'my/elfeed-search-print-entry)
+
+
+; Bind "U" to update feeds on main screen
+(bind-key "U" #'elfeed-update elfeed-search-mode-map)
+
+#+end_src
+
+Hook on elfeed main screen (hl-line mode).
+
+#+name: my/elfeed-search-mode-hook
+#+begin_src emacs-lisp
+
+(defun my/elfeed-search-mode-hook ()
+  (hl-line-mode t)
+  (set-window-fringes nil 0 1) ; One pixel right fringe to avoid ellipsis
+  (setq cursor-type nil))
+
+(add-hook 'elfeed-search-mode-hook  #'my/elfeed-search-mode-hook)
+
+#+end_src
+
+Hook on elfeed post screen (visual mode).
+
+#+name: my/elfeed-show-mode-hook
+#+begin_src emacs-lisp
+
+(defun my/elfeed-show-mode-hook ()
+  (visual-line-mode))
+
+(add-hook 'elfeed-show-mode-hook #'my/elfeed-show-mode-hook)
+
+#+end_src
+
+** Bookmarks
+
+Setup bookmarlks ([[file:elfeed.org][elfeed.org]]) using [[https://github.com/remyhonig/elfeed-org][elfeed-org]]. It is important to load it after elfeed such as to not load org immediately.
+
+#+begin_src emacs-lisp
+
+(with-eval-after-load 'org
+  (require 'elfeed-org)
+  (setq rmh-elfeed-org-files (list (expand-file-name "elfeed.org" user-emacs-directory)))
+  (elfeed-org))
+  
+#+end_src
+
+** Benchmark
+
+#+begin_src emacs-lisp  :prologue "" :epilogue ""
+
+(message "News section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+
+* Notes :DEFER:
+:PROPERTIES:
+:header-args:emacs-lisp: :prologue "(with-eval-after-load 'deft" :epilogue ")"
+:END:
+
+#+begin_src emacs-lisp  :prologue "" :epilogue ""
+
+(setq my/section-start-time (current-time))
+
+#+end_src
+
+** Keywords
+** Read
+
+Deft setup
+
+#+begin_src emacs-lisp
+
+(setq deft-default-extension "org"
+      deft-extensions '("org")
+      deft-recursive nil
+      deft-use-filename-as-title nil
+      deft-use-filter-string-for-filename t
+      deft-file-naming-rules '((noslash . "-")
+                               (nospace . "-")
+                               (case-fn . downcase))
+      deft-separator " "
+      deft-time-format " %d %b %Y")
+
+#+end_src
+
+Rewrite the ~deft-print-header~ function to get rid of "Deft\n"
+
+#+begin_src emacs-lisp
+
+(defun deft-print-header ()
+  (force-mode-line-update))
+
+#+end_src
+
+Bug fix (see https://github.com/jrblevin/deft/issues/73)
+
+#+begin_src emacs-lisp
+
+(defun org-open-file-with-emacs (path)
+  (org-open-file path t))
+
+#+end_src
+
+** Write :HOOK:
+
+Setup note modes and ask for a title if the file does not exist
+
+#+begin_src emacs-lisp
+(defun my/deft-open-file ()
+  "Setup note modes and ask for a title if the file does not exist."
+  
+  (when (= (buffer-size (current-buffer)) 0)
+    (setq title (read-from-minibuffer "Note title: "))
+    (deft-note-set-keyword "DATE" (format-time-string "[%Y-%m-%d %a]"))
+    (deft-note-set-keyword "TITLE" (if (> (length title) 0)
+                                       title
+                                     "New note"))
+    (org-mode)
+    (org-indent-mode)
+    (visual-line-mode)))
+
+(add-hook 'deft-open-file-hook 'my/deft-open-file)
+
+#+end_src
+
+** Benchmark
+
+#+begin_src emacs-lisp  :prologue "" :epilogue ""
+
+(message "Notes section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+
+* System
+#+begin_src emacs-lisp  :prologue "" :epilogue ""
+
+(setq my/section-start-time (current-time))
+
+#+end_src
+
+** Term & shell :ADVICE:HOOK:
+
+Set default shell (zsh)
+
+#+begin_src emacs-lisp
+
+(setq-default shell-file-name          "/bin/zsh"
+              explicit-shell-file-name "/bin/zsh")
+
+#+end_src
+
+Kill term buffer when exiting.
+
+#+begin_src emacs-lisp
+
+(defun my/term-handle-exit (&optional proc msg)
+  "Kill term buffer (advice)."
+  
+  (message "%s | %s" proc msg)
+  (kill-buffer (current-buffer)))
+
+(advice-add 'term-handle-exit :after 'my/term-handle-exit)
+
+#+end_src
+
+** OSX :OS:
+
+Open an iterm (OSX) and go to the curent directory
+
+#+begin_src emacs-lisp
+
+(defun my/iterm-here ()
+  (interactive)
+
+  (shell-command "open -a iTerm $PWD" nil nil))
+
+#+end_src
+
+** Benchmark
+
+#+begin_src emacs-lisp  :prologue "" :epilogue ""
+
+(message "System section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+
+** Profiling
+
+Initialization time
+
+#+begin_src emacs-lisp
+
+(let ((init-time (float-time (time-subtract (current-time) my/init-start-time)))
+      (total-time (string-to-number (emacs-init-time "%f"))))
+
+  (message "Initialization time: %.2fs  (+%.2f system time)"
+           init-time (- total-time init-time)))
+
+
+#+end_src
