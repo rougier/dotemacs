@@ -9,9 +9,9 @@
 
 ** Forewords
 
-This document is a litterate configuration for GNU Emacs written in [[https://orgmode.org/][org]] format. It cannot be used directly and needs to be transformed to extract all the different code blocks into a single configuration file. This is done using the [[help:org-babel-tangle][org-babel-tangle]] function that "extract the bodies of all source code blocks from the current file into their own source-specific files". You can try by yourself by typing the sequence: =C-c C-v t=
+This document is a literate configuration for GNU Emacs written in [[https://orgmode.org/][org]] format. It cannot be used directly and needs to be transformed to extract all the different code blocks into a single configuration file. This is done using the [[help:org-babel-tangle][org-babel-tangle]] function that "extract the bodies of all source code blocks from the current file into their own source-specific files". You can try by yourself by typing the sequence: =C-c C-v t= (org-babel-execute-subtree).
 
-However, on my Emacs (28.1), there seems to be a bug that prevent a proper tangling. You'll thus need to go to the [[Configuration]] section and excute it using =C-c C-v s= to fix this bug before tangling the file.
+However, on my Emacs (28.1), there seems to be a bug that prevent a proper tangling. You'll thus need to go to the [[Configuration]] section and execute it using =C-c C-v s= to fix this bug before tangling the file.
 
 Each subsection may be tagged with:
 
@@ -264,6 +264,7 @@ See https://list.orgmode.org/CA+G3_PNrdhx0Ejzw8UO7DgZ+ju1B7Ar_eTch5MMViEpKGwqq3w
 
 - Make tag filtering works. Ideally, by marking them salient in the side imenu-list or view org-tag-view
 - Display tags and size of each section in the sidebar
+
 
 * Core
 
@@ -647,6 +648,7 @@ Server start.
 
 #+end_src
 
+
 * Personal library
 
 #+begin_src emacs-lisp
@@ -900,6 +902,8 @@ A set of mail (mu4e) related functions.
          (float-time (time-subtract (current-time) my/section-start-time)))
 
 #+end_src
+
+
 * Interface
 
 #+begin_src emacs-lisp
@@ -1095,7 +1099,7 @@ The mode displays the key bindings following your currently entered incomplete c
 
 #+end_src
 
-** Cursor
+** Cursor :MODE:
 
 We set the appearance of the cursor: horizontal line, 2 pixels thick, no blinking
 
@@ -1110,7 +1114,7 @@ We set the appearance of the cursor: horizontal line, 2 pixels thick, no blinkin
 
 #+end_src
 
-** Text
+** Text :BINDING:
 
 Pretty self-explanatory
 
@@ -1227,10 +1231,9 @@ Make sure clipboard works properly in tty mode on OSX.
 ** Help :BINDING:
 
 [[https://github.com/Wilfred/helpful][Helpful]] is an alternative to the built-in Emacs help that provides much more contextual information.
+It is a bit slow to load so we do need load it explicitely.
 
 #+begin_src emacs-lisp
-
-(require 'helpful)
 
 (setq help-window-select t)             ; Focus new help windows when opened
 
@@ -1252,7 +1255,9 @@ Make sure clipboard works properly in tty mode on OSX.
 
 #+end_src
 
+
 * Visual
+
 
 #+begin_src emacs-lisp
 
@@ -1389,6 +1394,7 @@ Make sure underline is positionned at the very bottom.
 
 #+end_src
 
+
 * Editing
 
 #+begin_src emacs-lisp
@@ -1469,7 +1475,9 @@ Highlighting of the current line (native mode)
 
 #+end_src
 
+
 * Completion
+
 #+begin_src emacs-lisp
 
 (setq my/section-start-time (current-time))
@@ -1547,7 +1555,8 @@ Allow completion based on space-separated tokens, out of order.
 
 #+end_src
 
-* Minibuffer / Modeline
+
+* Minibuffer & Modeline
 
 #+begin_src emacs-lisp
 
@@ -1912,6 +1921,7 @@ We set a thin modeline
          (float-time (time-subtract (current-time) my/section-start-time)))
 
 #+end_src
+
 
 * Mail :DEFER:
 :PROPERTIES:
@@ -2651,6 +2661,7 @@ Provide a [[help:mu4e-dashboard][mu4e-dashboard]] command that opens the mu4e da
 
 #+end_src
 
+
 * Org :DEFER:
 :PROPERTIES:
 :header-args:emacs-lisp: :prologue "(with-eval-after-load 'org" :epilogue ")"
@@ -2741,6 +2752,7 @@ We adapt fill functions according to the indent level.
          (float-time (time-subtract (current-time) my/section-start-time)))
 
 #+end_src
+
 
 * Agenda :DEFER:
 :PROPERTIES:
@@ -3226,7 +3238,14 @@ Finally, we disable [[help:org-agenda-show-outline-path][org-agenda-show-outline
 
 #+end_src
 
+
 * Versioning
+
+#+begin_src emacs-lisp :prologue "" :epilogue ""
+
+(setq my/section-start-time (current-time))
+
+#+end_src
 
 ** Magit :ADVICE:HOOK:
 
@@ -3248,6 +3267,16 @@ Add fringe on the left side of magit windows such that we can highlight region u
               (set-window-fringes nil (* 2 (window-font-width)) 0)))
 
 #+end_src
+** Benchmark
+
+#+begin_src emacs-lisp  :prologue "" :epilogue ""
+
+(message "Versioning section time: %.2fs"
+         (float-time (time-subtract (current-time) my/section-start-time)))
+
+#+end_src
+
+
 * News :DEFER:
 :PROPERTIES:
 :header-args:emacs-lisp: :prologue "(with-eval-after-load 'elfeed" :epilogue ")"
@@ -3371,6 +3400,7 @@ Setup bookmarlks ([[file:elfeed.org][elfeed.org]]) using [[https://github.com/re
 
 #+end_src
 
+
 * Notes :DEFER:
 :PROPERTIES:
 :header-args:emacs-lisp: :prologue "(with-eval-after-load 'deft" :epilogue ")"
@@ -3382,7 +3412,6 @@ Setup bookmarlks ([[file:elfeed.org][elfeed.org]]) using [[https://github.com/re
 
 #+end_src
 
-** Keywords
 ** Read
 
 Deft setup
@@ -3451,6 +3480,7 @@ Setup note modes and ask for a title if the file does not exist
 
 #+end_src
 
+
 * System
 #+begin_src emacs-lisp  :prologue "" :epilogue ""
 
@@ -3514,7 +3544,7 @@ Report final initialization time
 (let ((init-time (float-time (time-subtract (current-time) my/init-start-time)))
       (total-time (string-to-number (emacs-init-time "%f"))))
 
-  (message "Initialization time: %.2fs  (+%.2f system time)"
+  (message "Initialization time: %.2fs  (+ %.2f system time)"
            init-time (- total-time init-time)))
 
 
