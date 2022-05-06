@@ -3234,12 +3234,10 @@ Finally, we disable [[help:org-agenda-show-outline-path][org-agenda-show-outline
 
 ** Nano agenda :BINDING:
 
-#+header: :prologue "(with-eval-after-load 'org" :epilogue ")"
+#+header: :prologue "" :epilogue ""
 #+begin_src emacs-lisp
 
-(require 'nano-agenda)
-
-(bind-key "C-n" #'nano-agenda)
+(bind-key "C-c n" #'nano-agenda)
 
 #+end_src
 
