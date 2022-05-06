@@ -45,12 +45,24 @@ This section is meant to ease the writing of the configuration file using a dedi
 =C-c C-S-p= : Go to previous section
 =C-c C-S-n= : Go to next section
 =C-c t=     : Fold code blocks
+=C-c f=     : Filter block visibility (sidebar)
 =C-c C-v t= : Export (tangle) code
 =C-c C-v s= : Execute current subsection
 
 Before being able to use it, you need to execute the whole subtree using [[help:org-babel-execute-subtree][org-babel-execute-subtree]] (generally bound to =C-c C-v s=).
 
-Default tangle target file. This will be overriden for the =:EARLY:= section
+A shortcut for emacs-lisp source blocks. Type "<S" (in org-mode) then press tab.
+
+#+begin_src emacs-lisp
+
+(require 'org-tempo)
+
+(add-to-list 'org-structure-template-alist
+             '("S" . "src emacs-lisp"))
+
+#+end_src
+
+*** Sidebar
 
 #+name: my/org-sidebar
 #+begin_src emacs-lisp
@@ -146,6 +158,95 @@ Toggle code blocks folding, starting folded.
 (add-hook 'config-mode-hook #'my/org-toggle-blocks)
 
 #+end_src
+
+*** Filter :BINDING:
+
+This provide the ~my/org-imenu-filter~ that allow to filter sidebar entries using the specified expression (e.g. "+HOOK +DEFER").
+
+#+begin_src emacs-lisp
+
+(bind-key "C-c f" #'my/org-imenu-filter)
+
+#+end_src
+
+3 levels for org-imenu
+
+#+begin_src emacs-lisp
+
+(setq org-imenu-depth 3)
+
+#+end_src
+
+#+begin_src emacs-lisp
+
+(defvar my/org-imenu-filter-history
+  '("BINDING" "HOOK" "ADVICE" "FACE" "MODE" "DEFER"
+    "PERSONAL" "INACTIVE" "BUGFIX" "OTHER" "TIMER" "OS")
+  "Filter history list.")
+
+(defvar my/org-imenu-filter-function
+  (cdr (org-make-tags-matcher "*"))
+  "Filter function to decide if a headline is kept")
+
+(defun my/org-imenu-filter ()
+  "Define and apply a new filter"
+  
+  (interactive)
+  (let* ((match (consult-completing-read-multiple
+                 "FILTER: "
+                 my/org-imenu-filter-history
+                 nil nil nil
+                 'my/org-imenu-filter-history))
+         (match (mapconcat #'identity match " ")))
+    (when (string= "" match)
+      (setq match "*"))
+    (setq my/org-imenu-filter-function
+          (cdr (org-make-tags-matcher match)))
+    (imenu-list-refresh)))
+
+
+(defun my/org-imenu-filter-tree (&optional bound parent-match)
+  "Build a imenu list using current filter function"
+  
+  (let* ((headlines '()))
+    (save-excursion
+      (org-with-wide-buffer
+       (unless bound
+         (setq bound (point-max))
+         (goto-char (point-min)))
+       (while (re-search-forward org-heading-regexp bound t)
+         (let* ((element (org-element-at-point))
+                (begin (org-element-property :begin element))
+                (end (org-element-property :end element))
+                (marker (copy-marker begin))
+                (level (org-element-property :level element))
+
+                (match (save-excursion
+                         (goto-char begin)
+                         (funcall my/org-imenu-filter-function
+                                  nil (org-get-tags) level)))
+                
+                (title (org-element-property :raw-value element))
+                (title (org-link-display-format
+                        (substring-no-properties title)))
+                (title (propertize title 'org-imenu-marker marker
+                                         'org-imenu t))
+                (children (my/org-imenu-filter-tree end match)))
+           (goto-char end)
+
+           (cond ((> (length children) 0)
+                  (add-to-list 'headlines (append (list title) children) t))
+                 ((or match parent-match)
+                  (add-to-list 'headlines (cons title marker) t)))))))
+    headlines))
+
+(advice-add #'org-imenu-get-tree :override #'my/org-imenu-filter-tree)
+
+#+end_src
+
+*** Configuration mode
+
+This section defines the ~my/config-mode~ to ease navigating and interacting with the configuration file.
 
 Navigation commands using the ilist menu.
 
