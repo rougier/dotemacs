@@ -613,6 +613,20 @@ Start history mode.
 
 #+end_src
 
+** Cursor
+
+Record cursor position from one session ot the other
+
+#+begin_src emacs-lisp
+
+(setq save-place-file (expand-file-name "saveplace" user-emacs-directory)
+      save-place-forget-unreadable-files t)
+
+(save-place-mode 1)
+
+#+end_src
+
+
 ** Customization
 
 Since init.el will be generated from this file, we save customization in a dedicated file.
