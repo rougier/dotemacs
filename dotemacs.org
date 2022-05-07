@@ -31,7 +31,7 @@ There is also a configuration mode defined in the section below to ease the writ
 
 When tangled, the process will create the file [[file:~/.emacs.d/init.el][~/.emacs.org/init.el]]  [[file:~/.emacs.d/early-init.el][~/.emacs.org/early-init.el]] (from the [[Early init]] section). You can either copy these files to your ~emacs.d~ or you can use [[https://github.com/plexus/chemacs2][chemacs2]] and add ~.emacs.org~ as an alternative profile.
 
-Note also that the first time you will start emacs using this configuration, *it will take a long time* because a lof of packages will be dowloaded, installed and posibly compiled if you use Emacs 28 and above. At next restart, the process should be very fast (650 ms on my machine using OSX).
+Note also that the first time you will start emacs using this configuration, *it will take a long time* because a lof of packages will be dowloaded, installed and possibly compiled (if you use Emacs 28 and above). At next restart, the process should be very fast (650 ms on my machine using OSX).
 ** Configuration :BINDING:HOOK:INACTIVE:
 :PROPERTIES:
 :header-args:emacs-lisp: :results none
@@ -316,7 +316,6 @@ A minor mode for configuration
   
 #+end_src
 
-
 *** Bugfix :BUGFIX:
 
 *Temporary bugfix* for babel emacs-lisp that does not take into account prologue/epilogue.
@@ -361,18 +360,13 @@ See https://list.orgmode.org/CA+G3_PNrdhx0Ejzw8UO7DgZ+ju1B7Ar_eTch5MMViEpKGwqq3w
 
 * Core
 
-#+begin_src emacs-lisp
-
-(setq my/section-start-time (current-time))
-
-#+end_src
-
 ** Header 
 
 This will generate a header at the top of the tangled file to indicate it is generated and is not meant to be modified directly.
 
 #+begin_src emacs-lisp :epilogue (format-time-string ";; Last generated on %c")
 
+;; -*- lexical-binding: t -*-
 ;; This file has been generated from dotemacs.org file. DO NOT EDIT.
 ;; Sources are available from https://github.com/rougier/dotemacs
 
@@ -522,10 +516,6 @@ My personal packages
 ;; NANO modeline
 (straight-use-package
  '(nano-modeline :type git :host github :repo "rougier/nano-modeline"))
-
-;; NANO minibuffer
-(straight-use-package
- '(nano-minibuffer :type git :host github :repo "rougier/nano-minibuffer"))
 
 ;; NANO agenda
 (straight-use-package
@@ -722,7 +712,6 @@ Record cursor position from one session ot the other
 (save-place-mode 1)
 
 #+end_src
-
 
 ** Customization
 
@@ -1648,7 +1637,7 @@ Allow completion based on space-separated tokens, out of order.
 
 (require 'orderless)
   
-(setq completion-styles '(substrinc orderless basic)
+(setq completion-styles '(substring orderless basic)
       orderless-component-separator 'orderless-escapable-split-on-space
       read-file-name-completion-ignore-case t
       read-buffer-completion-ignore-case t
@@ -1703,7 +1692,7 @@ For the [[help:consult-goto-line][consult-goto-line]] and ~consult-line~ command
   (let ((consult-preview-key 'any))
     (consult-line)))
 
-(bind-key "C-s"   #'my/consult-line)
+;; (bind-key "C-s"   #'my/consult-line)
 
 #+end_src
 #+name: my/consult-goto-line
@@ -1720,6 +1709,7 @@ For the [[help:consult-goto-line][consult-goto-line]] and ~consult-line~ command
 (bind-key "M-g M-g" #'my/consult-goto-line)
 
 #+end_src
+
 ** Vertico :ADVICE:HOOK:BINDING:MODE:FACE:
 
 [[https://github.com/minad/vertico][Vertico]] provides a performant and minimalistic vertical completion UI based on the default completion system but aims to be highly flexible, extensible and modular.
@@ -1727,6 +1717,8 @@ For the [[help:consult-goto-line][consult-goto-line]] and ~consult-line~ command
 #+begin_src emacs-lisp
 
 (require 'vertico)
+
+;; (setq completion-styles '(basic substring partial-completion flex))
 
 (setq vertico-resize nil        ; How to resize the Vertico minibuffer window.
       vertico-count 10          ; Maximal number of candidates to show.
@@ -1842,96 +1834,6 @@ Pretty straightforward.
 (marginalia-mode)
 
 #+end_src
-** Miniframe :MODE:FACE:BUGFIX:
-
-#+begin_src emacs-lisp
-
-(require 'nano-minibuffer)
-
-(set-face-attribute 'minibuffer-prompt nil
-                    :foreground "black")
-(set-face-attribute 'nano-minibuffer-face nil
-                    :inherit 'highlight)
-(set-face-attribute 'nano-minibuffer-header-face nil
-                    :inherit '(nano-strong nano-subtle)
-                    :foreground "black"
-                    :box `(:line-width (1 . 3)
-                           :color ,(face-background 'nano-subtle)
-                           :style flat))
-
-;; No prompt edit
-(setq minibuffer-prompt-properties '(read-only t
-                                     cursor-intangible t
-                                     face minibuffer-prompt))
-
-;; Recursive minibuffers or else it messes up with mini-frame
-(setq enable-recursive-minibuffers t)
-
-;; Minibuffer mode
-(setq nano-minibuffer-position 'top)
-
-#+end_src
-
-For some unknown reason, I need to redefine here the ~nano-minibuffer--frame-parameters~ function or else emacs complains it cannot call it. I suspect this is linked to native compilation and/or straight.el usage. The *workaround* is to copy the code here but it is far from ideal.
-
-#+begin_src emacs-lisp
-
-(defun nano-minibuffer--frame-parameters ()
-  "Compute minibuffer frame size and position."
-
-  ;; Quite precise computation to align the minibuffer and the
-  ;; modeline when they are both at top position
-  (let* ((edges (window-pixel-edges)) ;; (left top right bottom)
-         (body-edges (window-body-pixel-edges)) ;; (left top right bottom)
-         (left (nth 0 edges)) ;; Take margins into account
-         (top (nth 1 edges)) ;; Drop header line
-         (right (nth 2 edges)) ;; Take margins into account
-         (bottom (nth 3 body-edges)) ;; Drop header line
-         (left (if (eq left-fringe-width 0)
-                   left
-                 (- left (frame-parameter nil 'left-fringe))))
-         (right (nth 2 edges))
-         (right (if (eq right-fringe-width 0)
-                    right
-                  (+ right (frame-parameter nil 'right-fringe))))
-         (border 1)
-         (width (- right left (* 0 border)))
-
-         ;; Window divider mode
-         (width (- width (if (and (bound-and-true-p window-divider-mode)
-                                  (or (eq window-divider-default-places 'right-only)
-                                      (eq window-divider-default-places t))
-                                  (window-in-direction 'right (selected-window)))
-                             window-divider-default-right-width
-                           0)))
-         (y (- top border)))
-
-    (append `((left-fringe . 0)
-              (right-fringe . 0)
-              (user-position . t) 
-              (foreground-color . ,(face-foreground 'nano-minibuffer-face nil 'default))
-              (background-color . ,(face-background 'nano-minibuffer-face nil 'default)))
-            (cond ((and (eq nano-minibuffer-position 'bottom))
-                   `((top . -1)
-                     (left . 0)
-                     (width . 1.0)
-                     (child-frame-border-width . 0)
-                     (internal-border-width . 0)))
-                  (t
-                   `((left . ,(- left border))
-                     (top . ,y)
-                     (width . (text-pixels . ,width))
-                     (child-frame-border-width . ,border)
-                     (internal-border-width . ,border)))))))
-
-#+end_src
-
-#+begin_src emacs-lisp
-
-(nano-minibuffer-mode 1)
-
-#+end_src
-
 ** Modeline :HOOK:MODE:FACE:
 
 We're using [[https://github.com/rougier/nano-modeline][nano-modeline]] and modify some settings here.
@@ -2000,7 +1902,6 @@ We're using [[https://github.com/rougier/nano-modeline][nano-modeline]] and modi
 (nano-modeline-mode 1)
 #+end_src
 
-
 We set a thin modeline
 
 #+begin_src emacs-lisp
@@ -2023,6 +1924,150 @@ We set a thin modeline
 
 #+end_src
 
+** Minibuffer :HOOK:
+
+Setup a minibuffer with a header
+
+#+begin_src emacs-lisp
+
+(defun my/minibuffer-setup ()
+  "Install a header line in the minibuffer via an overlay (and a hook)"
+  
+  (set-window-margins nil 0 0)
+  (set-fringe-style '(0 . 0))
+  (cursor-intangible-mode t)
+  (face-remap-add-relative 'default
+                           :inherit 'highlight)
+ (let* ((overlay (make-overlay (+ (point-min) 0) (+ (point-min) 0)))
+        (inhibit-read-only t)
+        (depth (minibuffer-depth)))
+   (save-excursion
+     (goto-char (point-min))
+     (insert (propertize
+              (concat
+               (propertize (concat "  " (if (> depth 1)
+                                             (format "Minibuffer (%d)" depth)
+                                           "Minibuffer")
+                                   "\n")
+                          'face `(:inherit (nano-subtle nano-strong)
+                                  :box (:line-width (1 . 3)
+                                         :color ,(face-background 'nano-subtle)
+                                         :style flat)
+                                  :extend t))
+                        (propertize "\n" 'face `(:height 0.33))
+                        (propertize " "))
+                      'cursor-intangible t
+                      'read-only t
+                      'field t
+                      'rear-nonsticky t
+                      'front-sticky t)))))
+
+(add-hook 'minibuffer-setup-hook #'my/minibuffer-setup)
+
+#+end_src
+
+No prompt editing
+
+#+begin_src emacs-lisp
+
+;; No prompt edit
+(setq minibuffer-prompt-properties '(read-only t
+                                     cursor-intangible t
+                                     face minibuffer-prompt))
+#+end_src
+
+Recursive minibuffer
+
+#+begin_src emacs-lisp
+
+;; Recursive minibuffers or else it messes up with mini-frame
+(setq enable-recursive-minibuffers t)
+
+#+end_src
+
+** Miniframe :MODE:FACE:
+
+#+begin_src emacs-lisp
+
+(require 'mini-frame)
+
+(defcustom my/minibuffer-position 'top
+  "Minibuffer position, one of 'top or 'bottom"
+  :type '(choice (const :tag "Top"    top)
+                 (const :tag "Bottom" bottom))
+  :group 'nano-minibuffer)
+
+
+(defun my/minibuffer--frame-parameters ()
+  "Compute minibuffer frame size and position."
+
+  ;; Quite precise computation to align the minibuffer and the
+  ;; modeline when they are both at top position
+  (let* ((edges (window-pixel-edges)) ;; (left top right bottom)
+         (body-edges (window-body-pixel-edges)) ;; (left top right bottom)
+         (left (nth 0 edges)) ;; Take margins into account
+         (top (nth 1 edges)) ;; Drop header line
+         (right (nth 2 edges)) ;; Take margins into account
+         (bottom (nth 3 body-edges)) ;; Drop header line
+         (left (if (eq left-fringe-width 0)
+                   left
+                 (- left (frame-parameter nil 'left-fringe))))
+         (right (nth 2 edges))
+         (right (if (eq right-fringe-width 0)
+                    right
+                  (+ right (frame-parameter nil 'right-fringe))))
+         (border 1)
+         (width (- right left (* 0 border)))
+
+         ;; Window divider mode
+         (width (- width (if (and (bound-and-true-p window-divider-mode)
+                                  (or (eq window-divider-default-places 'right-only)
+                                      (eq window-divider-default-places t))
+                                  (window-in-direction 'right (selected-window)))
+                             window-divider-default-right-width
+                           0)))
+         (y (- top border)))
+
+    (append `((left-fringe . 0)
+              (right-fringe . 0)
+              (user-position . t) 
+              (foreground-color . ,(face-foreground 'highlight nil 'default))
+              (background-color . ,(face-background 'highlight nil 'default)))
+            (cond ((and (eq my/minibuffer-position 'bottom))
+                   `((top . -1)
+                     (left . 0)
+                     (width . 1.0)
+                     (child-frame-border-width . 0)
+                     (internal-border-width . 0)))
+                  (t
+                   `((left . ,(- left border))
+                     (top . ,y)
+                     (width . (text-pixels . ,width))
+                     (child-frame-border-width . ,border)
+                     (internal-border-width . ,border)))))))
+
+  (set-face-background 'child-frame-border (face-foreground 'nano-faded))
+  (setq mini-frame-default-height 3)
+  (setq mini-frame-create-lazy t)
+  (setq mini-frame-show-parameters 'my/minibuffer--frame-parameters)
+  (setq mini-frame-ignore-commands
+        '("edebug-eval-expression" debugger-eval-expression))
+  (setq mini-frame-internal-border-color (face-foreground 'nano-faded))
+  (setq mini-frame-resize-min-height 3)
+  
+  ;; This does not work unless it is set via customize-variable
+  (setq mini-frame-resize t)
+
+#+end_src
+
+Mini-frame mode
+
+#+begin_src emacs-lisp
+
+(mini-frame-mode 1)
+
+#+end_src
+
 ** Benchmark
 
 #+begin_src emacs-lisp
@@ -2031,6 +2076,7 @@ We set a thin modeline
          (float-time (time-subtract (current-time) my/section-start-time)))
 
 #+end_src
+
 
 
 * Mail :DEFER:
@@ -3075,7 +3121,6 @@ Some decorations for the agenda
                 (propertize x 'face 'nano-faded) x))
          (x (if done (propertize x 'face 'nano-faded) x))
          (x (if canceled (propertize x 'face 'nano-faded) x)))
-       ; (x (if canceled (propertize x 'face '(:strike-through t)) x)))
     x))
 
 (advice-add 'org-agenda-highlight-todo
