@@ -3520,7 +3520,7 @@ Setup bookmarlks ([[file:elfeed.org][elfeed.org]]) using [[https://github.com/re
 
 #+end_src
 
-** Read
+** Read :HOOK:BUGFIX:
 
 Deft setup
 
@@ -3557,6 +3557,20 @@ Bug fix (see https://github.com/jrblevin/deft/issues/73)
 
 #+end_src
 
+A small bugfix for header that are too long by one character.
+
+#+begin_src emacs-lisp
+(defun deft-setup ()
+
+  (face-remap-add-relative 'hl-line :inherit 'nano-salient-i)
+  (set-window-fringes nil 0 1)
+  (set-default 'truncate-lines t))
+
+(add-hook 'deft-mode-hook #'deft-setup)
+
+#+end_src
+
+** Keywords
 ** Write :HOOK:
 
 Setup note modes and ask for a title if the file does not exist
