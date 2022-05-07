@@ -416,6 +416,10 @@ This code is meant to go to the [[file:early-init.el][early-init.el]] file.
                                            ; collector during init
  package-enable-at-startup nil)            ; We'll use straight.el
 
+
+(setq native-comp-eln-load-path
+      (list (expand-file-name "eln-cache" user-emacs-directory)))
+
 ;; Reset garbage collector limit after init process has ended (8Mo)
 (add-hook 'after-init-hook
           #'(lambda () (setq gc-cons-threshold (* 8 1024 1024))))
