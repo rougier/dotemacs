@@ -1691,7 +1691,7 @@ For the [[help:consult-goto-line][consult-goto-line]] and ~consult-line~ command
   (let ((consult-preview-key 'any))
     (consult-line)))
 
-;; (bind-key "C-s"   #'my/consult-line)
+(bind-key "C-s"   #'my/consult-line)
 
 #+end_src
 #+name: my/consult-goto-line
@@ -2600,17 +2600,18 @@ A custom multiline headers view for mu4e.
          (top-spacing (if child                +0.000 -0.250))
          (bot-spacing (if (and root has-child) +0.250 +0.250))
          (unread-mark (propertize (cond (unread               " ●")
-                                        ((and root has-child) " ")
+                                        ((and root has-child) "  ")
                                         (t                    "  "))
                                   'display `(raise ,top-spacing)))
          (one-line (and child mu4e-headers-include-related))
 
-         (face-sender (cond ((and root related)   '(nano-strong nano-faded))
+         (face-sender (cond ((and root related)   '(nano-strong nano-salient))
                              (root                '(nano-strong nano-default))
                              ((and child related) '(:inherit nano-faded :height 140))
                              (child               '(:inherit nano-default :height 140))
                              (t                   '(nano-default))))
-         (face-subject (cond (related '(:inherit nano-faded))
+         (face-subject (cond (unread  '(:inherit nano-salient))
+                             (related '(:inherit nano-faded))
                              (t       '(:inherit nano-default))))
          (face-tags (cond (related '(:inherit (nano-faded)              :height 120))
                           (t       '(:inherit (nano-popout nano-strong) :height 120))))
