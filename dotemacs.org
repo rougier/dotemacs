@@ -4,7 +4,6 @@
 #+STARTUP: show2levels indent hidestars
 #+PROPERTY: header-args :tangle (let ((org-use-tag-inheritance t)) (if (member "INACTIVE" (org-get-tags))  "no" "~/.emacs.org/init.el")))
 
-
 * Documentation
 ** Forewords
 
@@ -1924,12 +1923,58 @@ We set a thin modeline
 
 #+end_src
 
-** Minibuffer :HOOK:
+** Minibuffer :HOOK:ADVICE:
 
-Setup a minibuffer with a header
+Headerline (fake) for minibuffer
 
 #+begin_src emacs-lisp
 
+(defun my/minibuffer-header ()
+  "Minibuffer header"
+  
+  (let ((depth (minibuffer-depth)))
+    (concat
+     (propertize (concat "  " (if (> depth 1)
+                                   (format "Minibuffer (%d)" depth)
+                                 "Minibuffer ")
+                         "\n")
+                 'face `(:inherit (nano-subtle nano-strong)
+                         :box (:line-width (1 . 3)
+                               :color ,(face-background 'nano-subtle)
+                               :style flat)
+                         :extend t)))))
+
+#+end_src
+
+Vertico will disable truncate lines when point if too far on thee right. Problem is that it'll mess up with our fake headerline. We thus rewrite here the function to have truncate lines always on.
+
+#+begin_src emacs-lisp
+
+(defun my/vertico--resize-window (height)
+  "Resize active minibuffer window to HEIGHT."
+;;  (setq-local truncate-lines (< (point) (* 0.8 (vertico--window-width)))
+    (setq-local truncate-lines t
+                resize-mini-windows 'grow-only
+                max-mini-window-height 1.0)
+  (unless (frame-root-window-p (active-minibuffer-window))
+    (unless vertico-resize
+      (setq height (max height vertico-count)))
+    (let* ((window-resize-pixelwise t)
+           (dp (- (max (cdr (window-text-pixel-size))
+                       (* (default-line-height) (1+ height)))
+                  (window-pixel-height))))
+      (when (or (and (> dp 0) (/= height 0))
+                (and (< dp 0) (eq vertico-resize t)))
+        (window-resize nil dp nil nil 'pixelwise)))))
+
+(advice-add #'vertico--resize-window :override #'my/vertico--resize-window)
+
+#+end_src
+
+
+Setup minibuffer with our header line
+
+#+begin_src emacs-lisp
 (defun my/minibuffer-setup ()
   "Install a header line in the minibuffer via an overlay (and a hook)"
   
@@ -1939,49 +1984,33 @@ Setup a minibuffer with a header
   (face-remap-add-relative 'default
                            :inherit 'highlight)
  (let* ((overlay (make-overlay (+ (point-min) 0) (+ (point-min) 0)))
-        (inhibit-read-only t)
-        (depth (minibuffer-depth)))
-   (save-excursion
-     (goto-char (point-min))
-     (insert (propertize
-              (concat
-               (propertize (concat "  " (if (> depth 1)
-                                             (format "Minibuffer (%d)" depth)
-                                           "Minibuffer")
-                                   "\n")
-                          'face `(:inherit (nano-subtle nano-strong)
-                                  :box (:line-width (1 . 3)
-                                         :color ,(face-background 'nano-subtle)
-                                         :style flat)
-                                  :extend t))
-                        (propertize "\n" 'face `(:height 0.33))
-                        (propertize " "))
-                      'cursor-intangible t
-                      'read-only t
-                      'field t
-                      'rear-nonsticky t
-                      'front-sticky t)))))
+        (inhibit-read-only t))
+
+    (save-excursion
+      (goto-char (point-min))
+      (insert (propertize
+               (concat (my/minibuffer-header)
+                       (propertize "\n" 'face `(:height 0.33))
+                       (propertize " "))
+               'cursor-intangible t
+               'read-only t
+               'field t
+               'rear-nonsticky t
+               'front-sticky t)))))
+
 
 (add-hook 'minibuffer-setup-hook #'my/minibuffer-setup)
 
 #+end_src
 
-No prompt editing
+No prompt editing and recursive minibuffer
 
 #+begin_src emacs-lisp
 
-;; No prompt edit
 (setq minibuffer-prompt-properties '(read-only t
                                      cursor-intangible t
-                                     face minibuffer-prompt))
-#+end_src
-
-Recursive minibuffer
-
-#+begin_src emacs-lisp
-
-;; Recursive minibuffers or else it messes up with mini-frame
-(setq enable-recursive-minibuffers t)
+                                     face minibuffer-prompt)
+      enable-recursive-minibuffers t)
 
 #+end_src
 
@@ -2054,8 +2083,6 @@ Recursive minibuffer
         '("edebug-eval-expression" debugger-eval-expression))
   (setq mini-frame-internal-border-color (face-foreground 'nano-faded))
   (setq mini-frame-resize-min-height 3)
-  
-  ;; This does not work unless it is set via customize-variable
   (setq mini-frame-resize t)
 
 #+end_src
@@ -3454,7 +3481,6 @@ Add fringe on the left side of magit windows such that we can highlight region u
 :PROPERTIES:
 :header-args:emacs-lisp: :prologue "(with-eval-after-load 'elfeed" :epilogue ")"
 :END:
-
 
 #+begin_src emacs-lisp  :prologue "" :epilogue ""
 
