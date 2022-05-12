@@ -3312,9 +3312,9 @@ We install a time to refresh the daily agenda (a) at regular intervals such that
 
 #+end_src
 
-** Capture :ADVICE:
+** Capture :ADVICE:BINDING:
 
-#+begin_src emacs-lisp
+#+begin_src emacs-lisp :prologue "" :epilogue ""
 
 (setq org-capture-templates
       '(("i" "Inbox"  entry   (file "inbox.org")
@@ -3324,6 +3324,26 @@ We install a time to refresh the daily agenda (a) at regular intervals such that
          "* %?Meeting <%<%Y-%m-%d %a 12:00-13:00>>"
          :empty-lines-after 1)))
       
+#+end_src
+
+Assign key
+
+#+begin_src emacs-lisp :prologue "" :epilogue ""
+
+(bind-key "C-c c" #'org-capture)
+
+(defun my/org-capture-meeting ()
+  (interactive)
+  (org-capture nil "m"))
+
+(bind-key "C-c m" #'my/org-capture-meeting)
+
+(defun my/org-capture-inbox ()
+  (interactive)
+  (org-capture nil "i"))
+
+(bind-key "C-c i" #'my/org-capture-inbox)
+
 #+end_src
 
 ** Navigation :ADVICE:
