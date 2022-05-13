@@ -825,6 +825,7 @@ This provide the ~my/org-imenu-filter~ that allow to filter sidebar entries usin
 #+begin_src emacs-lisp
 
 (bind-key "C-c f" #'my/org-imenu-filter)
+(bind-key "f" #'my/org-imenu-filter imenu-list-major-mode-map)
 
 #+end_src
 
