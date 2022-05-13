@@ -31,312 +31,6 @@ There is also a configuration mode defined in the section below to ease the writ
 When tangled, the process will create the file [[file:~/.emacs.d/init.el][~/.emacs.org/init.el]]  [[file:~/.emacs.d/early-init.el][~/.emacs.org/early-init.el]] (from the [[Early init]] section). You can either copy these files to your ~emacs.d~ or you can use [[https://github.com/plexus/chemacs2][chemacs2]] and add ~.emacs.org~ as an alternative profile.
 
 Note also that the first time you will start emacs using this configuration, *it will take a long time* because a lof of packages will be dowloaded, installed and possibly compiled (if you use Emacs 28 and above). At next restart, the process should be very fast (650 ms on my machine using OSX).
-** Configuration :BINDING:HOOK:INACTIVE:
-:PROPERTIES:
-:header-args:emacs-lisp: :results none
-:END:
-
-*** General
-
-This section is meant to ease the writing of the configuration file using a dedicated minor mode (~my/config-mode~) with a few key bindings:
-
-=C-`=       : Toggle navigation sidebar
-=C-c C-p=   : Go to previous subsection
-=C-c C-n=   : Go to next subsection
-=C-c C-S-p= : Go to previous section
-=C-c C-S-n= : Go to next section
-=C-c t=     : Fold code blocks
-=C-c f=     : Filter block visibility (sidebar)
-=C-c C-v t= : Export (tangle) code
-=C-c C-v s= : Execute current subsection
-
-Before being able to use it, you need to execute the whole subtree using [[help:org-babel-execute-subtree][org-babel-execute-subtree]] (generally bound to =C-c C-v s=).
-
-A shortcut for emacs-lisp source blocks. Type "<S" (in org-mode) then press tab.
-
-#+begin_src emacs-lisp
-
-(require 'org-tempo)
-
-(add-to-list 'org-structure-template-alist
-             '("S" . "src emacs-lisp"))
-
-#+end_src
-
-*** Sidebar
-
-#+name: my/org-sidebar
-#+begin_src emacs-lisp
-
-(require 'imenu)
-(require 'imenu-list)
-
-(defun my/org-tree-to-indirect-buffer ()
-  "Create indirect buffer, narrow it to current subtree and unfold blocks"
-  
-  (org-tree-to-indirect-buffer)
-  (org-show-block-all)
-  (setq-local my/org-blocks-hidden nil))
-
-(defun my/org-sidebar ()
-  "Open an imenu list on the left that allow navigation."
-  
-  (interactive)
-  (setq imenu-list-after-jump-hook #'my/org-tree-to-indirect-buffer
-        imenu-list-position 'left
-        imenu-list-size 36
-        imenu-list-focus-after-activation t)
-
-  (let ((heading (substring-no-properties (or (org-get-heading t t t t) ""))))
-    (when (buffer-base-buffer)
-      (switch-to-buffer (buffer-base-buffer)))
-    (imenu-list-minor-mode)
-    (imenu-list-stop-timer)
-    (hl-line-mode)
-    (face-remap-add-relative 'hl-line :inherit 'nano-strong-i)
-    (setq header-line-format
-          '(:eval
-            (nano-modeline-render nil
-                                  (buffer-name imenu-list--displayed-buffer)
-                                  "(outline)"
-                                  "")))
-    (setq-local cursor-type nil)
-    (when (> (length heading) 0)
-      (goto-char (point-min))
-      (search-forward heading)
-      (imenu-list-display-dwim))))
-
-#+end_src
-
-This toggles the org-sidebar.
-
-#+name: org-sidebar-toggle
-#+begin_src emacs-lisp
-
-(defun my/org-sidebar-toggle ()
-  "Toggle the org-sidebar"
-  
-  (interactive)
-  (if (get-buffer-window "*Ilist*")
-      (progn 
-        (quit-window nil (get-buffer-window "*Ilist*"))
-        (switch-to-buffer (buffer-base-buffer)))
-    (my/org-sidebar)))
-
-#+end_src
-
-Make sure tangle is applied to the base buffer and not the subtree.
-
-#+name: my/org-babel-tangle
-#+begin_src emacs-lisp
-
-(defun my/org-babel-tangle ()
-  "Write code blocks to source-specific files from the base buffer."
-
-  (interactive)
-  (with-current-buffer (or (buffer-base-buffer)
-                           (current-buffer))
-    (org-babel-tangle)))
-
-#+end_src
-
-Toggle code blocks folding, starting folded.
-
-#+name: my/org-toggle-blocks
-#+begin_src emacs-lisp
-
-(defvar my/org-blocks-hidden nil)
-
-(defun my/org-toggle-blocks ()
-  "Toggle code blocks folding."
-  
-  (interactive)
-  (if my/org-blocks-hidden
-      (org-show-block-all)
-    (org-hide-block-all))
-  (setq-local my/org-blocks-hidden (not my/org-blocks-hidden)))
-
-(add-hook 'config-mode-hook #'my/org-toggle-blocks)
-
-#+end_src
-
-*** Filter :BINDING:
-
-This provide the ~my/org-imenu-filter~ that allow to filter sidebar entries using the specified expression (e.g. "+HOOK +DEFER").
-
-#+begin_src emacs-lisp
-
-(bind-key "C-c f" #'my/org-imenu-filter)
-
-#+end_src
-
-3 levels for org-imenu
-
-#+begin_src emacs-lisp
-
-(setq org-imenu-depth 3)
-
-#+end_src
-
-#+begin_src emacs-lisp
-
-(defvar my/org-imenu-filter-history
-  '("BINDING" "HOOK" "ADVICE" "FACE" "MODE" "DEFER"
-    "PERSONAL" "INACTIVE" "BUGFIX" "OTHER" "TIMER" "OS")
-  "Filter history list.")
-
-(defvar my/org-imenu-filter-function
-  (cdr (org-make-tags-matcher "*"))
-  "Filter function to decide if a headline is kept")
-
-(defun my/org-imenu-filter ()
-  "Define and apply a new filter"
-  
-  (interactive)
-  (let* ((match (consult-completing-read-multiple
-                 "FILTER: "
-                 my/org-imenu-filter-history
-                 nil nil nil
-                 'my/org-imenu-filter-history))
-         (match (mapconcat #'identity match " ")))
-    (when (string= "" match)
-      (setq match "*"))
-    (setq my/org-imenu-filter-function
-          (cdr (org-make-tags-matcher match)))
-    (imenu-list-refresh)))
-
-
-(defun my/org-imenu-filter-tree (&optional bound parent-match)
-  "Build a imenu list using current filter function"
-  
-  (let* ((headlines '()))
-    (save-excursion
-      (org-with-wide-buffer
-       (unless bound
-         (setq bound (point-max))
-         (goto-char (point-min)))
-       (while (re-search-forward org-heading-regexp bound t)
-         (let* ((element (org-element-at-point))
-                (begin (org-element-property :begin element))
-                (end (org-element-property :end element))
-                (marker (copy-marker begin))
-                (level (org-element-property :level element))
-
-                (match (save-excursion
-                         (goto-char begin)
-                         (funcall my/org-imenu-filter-function
-                                  nil (org-get-tags) level)))
-                
-                (title (org-element-property :raw-value element))
-                (title (org-link-display-format
-                        (substring-no-properties title)))
-                (title (propertize title 'org-imenu-marker marker
-                                         'org-imenu t))
-                (children (my/org-imenu-filter-tree end match)))
-           (goto-char end)
-
-           (cond ((> (length children) 0)
-                  (add-to-list 'headlines (append (list title) children) t))
-                 ((or match parent-match)
-                  (add-to-list 'headlines (cons title marker) t)))))))
-    headlines))
-
-(advice-add #'org-imenu-get-tree :override #'my/org-imenu-filter-tree)
-
-#+end_src
-
-*** Configuration mode
-
-This section defines the ~my/config-mode~ to ease navigating and interacting with the configuration file.
-
-Navigation commands using the ilist menu.
-
-#+begin_src emacs-lisp
-
-(defun my/config-mode-prev-header ()
-  "Move to previous header"
-  
-  (interactive)
-  (with-current-buffer "*Ilist*"
-    (search-backward-regexp "^  ")
-    (imenu-list-display-dwim)))
-
-(defun my/config-mode-next-header ()
-  "Move to next header"
-    
-  (interactive)
-  (with-current-buffer "*Ilist*"
-    (forward-line)
-    (search-forward-regexp "^  ")
-    (imenu-list-display-dwim)))
-
-(defun my/config-mode-prev-section ()
-  "Move to previous section"
-    
-  (interactive)
-  (with-current-buffer "*Ilist*"
-    (search-backward-regexp "\\+ " nil nil 2)
-    (forward-line)
-    (imenu-list-display-dwim)))
-
-(defun my/config-mode-next-section ()
-  "Move to next section"
-    
-  (interactive)
-  (with-current-buffer "*Ilist*"
-    (previous-line)
-    (search-forward-regexp "\\+ ")
-    (forward-line)
-    (imenu-list-display-dwim)))
-
-#+end_src
-
-A minor mode for configuration
-
-#+name: config-mode
-#+begin_src emacs-lisp
-
-(define-minor-mode my/config-mode
-  "Configuration mode"
-  
-  :init-value nil
-  :global nil
-  :keymap (let ((map (make-sparse-keymap)))
-            (bind-key "C-c C-p"   #'my/config-mode-prev-header map)
-            (bind-key "C-c C-n"   #'my/config-mode-next-header map)
-            (bind-key "C-c C-S-p" #'my/config-mode-prev-section map)
-            (bind-key "C-c C-S-n" #'my/config-mode-next-section map)
-            (bind-key "C-`"       #'my/org-sidebar-toggle map)
-            (bind-key "C-c C-v t" #'my/org-babel-tangle map)
-            (bind-key "C-c t"     #'my/org-toggle-blocks map)
-            map)
-  (if my/config-mode
-      (my/org-sidebar)))
-  
-#+end_src
-
-*** Bugfix :BUGFIX:
-
-*Temporary bugfix* for babel emacs-lisp that does not take into account prologue/epilogue.
-See https://list.orgmode.org/CA+G3_PNrdhx0Ejzw8UO7DgZ+ju1B7Ar_eTch5MMViEpKGwqq3w@mail.gmail.com/T/
-(November 2020)
-
-#+name: org-babel-expand-body:emacs-lisp
-#+begin_src emacs-lisp
-
-(defun my/org-babel-expand-body:emacs-lisp (orig-fun body params)
-  "Expand BODY according to PARAMS and call original function with new body"
-
-  (let* ((pro (or (cdr (assq :prologue params)) ""))
-         (epi (or (cdr (assq :epilogue params)) ""))
-         (body (concat pro body epi)))
-    (apply orig-fun `(,body ,params))))
-
-(advice-add 'org-babel-expand-body:emacs-lisp
-            :around
-            #'my/org-babel-expand-body:emacs-lisp)
-
-#+end_src
 
 ** To sort :INACTIVE:
 
@@ -993,6 +687,335 @@ A set of mail (mu4e) related functions.
 
 #+end_src
 
+** Configuration :BINDING:HOOK:
+:PROPERTIES:
+:header-args:emacs-lisp: :prologue "(with-eval-after-load 'org" :epilogue ")"
+:END:
+
+*** General
+
+This section is meant to ease the writing of the configuration file using a dedicated minor mode (~my/config-mode~) with a few key bindings:
+
+=C-`=       : Toggle navigation sidebar
+=C-c C-p=   : Go to previous subsection
+=C-c C-n=   : Go to next subsection
+=C-c C-S-p= : Go to previous section
+=C-c C-S-n= : Go to next section
+=C-c t=     : Fold code blocks
+=C-c f=     : Filter block visibility (sidebar)
+=C-c C-v t= : Export (tangle) code
+=C-c C-v s= : Execute current subsection
+
+Before being able to use it, you need to execute the whole subtree using [[help:org-babel-execute-subtree][org-babel-execute-subtree]] (generally bound to =C-c C-v s=).
+
+A shortcut for emacs-lisp source blocks. Type "<S" (in org-mode) then press tab.
+
+#+begin_src emacs-lisp
+
+(require 'org-tempo)
+(add-to-list 'org-structure-template-alist
+             '("S" . "src emacs-lisp"))
+
+#+end_src
+
+*** Sidebar
+
+#+name: my/org-sidebar
+#+begin_src emacs-lisp
+
+(require 'imenu)
+(require 'imenu-list)
+
+(defun my/org-tree-to-indirect-buffer ()
+  "Create indirect buffer, narrow it to current subtree and unfold blocks"
+  
+  (org-tree-to-indirect-buffer)
+  (org-show-block-all)
+  (setq-local my/org-blocks-hidden nil))
+
+(defun my/org-sidebar ()
+  "Open an imenu list on the left that allow navigation."
+  
+  (interactive)
+  (setq imenu-list-after-jump-hook #'my/org-tree-to-indirect-buffer
+        imenu-list-position 'left
+        imenu-list-size 36
+        imenu-list-focus-after-activation t)
+
+  (let ((heading (substring-no-properties (or (org-get-heading t t t t) ""))))
+    (when (buffer-base-buffer)
+      (switch-to-buffer (buffer-base-buffer)))
+    (imenu-list-minor-mode)
+    (imenu-list-stop-timer)
+    (hl-line-mode)
+    (face-remap-add-relative 'hl-line :inherit 'nano-strong-i)
+    (setq header-line-format
+          '(:eval
+            (nano-modeline-render nil
+                                  (buffer-name imenu-list--displayed-buffer)
+                                  "(outline)"
+                                  "")))
+    (setq-local cursor-type nil)
+    (when (> (length heading) 0)
+      (goto-char (point-min))
+      (search-forward heading)
+      (imenu-list-display-dwim))))
+
+#+end_src
+
+
+This toggles the org-sidebar.
+
+#+name: org-sidebar-toggle
+#+begin_src emacs-lisp
+
+(defun my/org-sidebar-toggle ()
+  "Toggle the org-sidebar"
+  
+  (interactive)
+  (if (get-buffer-window "*Ilist*")
+      (progn 
+        (quit-window nil (get-buffer-window "*Ilist*"))
+        (switch-to-buffer (buffer-base-buffer)))
+    (my/org-sidebar)))
+
+#+end_src
+
+Make sure tangle is applied to the base buffer and not the subtree.
+
+#+name: my/org-babel-tangle
+#+begin_src emacs-lisp
+
+(defun my/org-babel-tangle ()
+  "Write code blocks to source-specific files from the base buffer."
+
+  (interactive)
+  (with-current-buffer (or (buffer-base-buffer)
+                           (current-buffer))
+    (org-babel-tangle)))
+
+#+end_src
+
+
+Toggle code blocks folding, starting folded.
+
+#+name: my/org-toggle-blocks
+#+begin_src emacs-lisp
+
+(defvar my/org-blocks-hidden nil)
+
+(defun my/org-toggle-blocks ()
+  "Toggle code blocks folding."
+  
+  (interactive)
+  (if my/org-blocks-hidden
+      (org-show-block-all)
+    (org-hide-block-all))
+  (setq-local my/org-blocks-hidden (not my/org-blocks-hidden)))
+
+(add-hook 'config-mode-hook #'my/org-toggle-blocks)
+
+#+end_src
+
+
+*** Filter :BINDING:
+
+This provide the ~my/org-imenu-filter~ that allow to filter sidebar entries using the specified expression (e.g. "+HOOK +DEFER").
+
+#+begin_src emacs-lisp
+
+(bind-key "C-c f" #'my/org-imenu-filter)
+
+#+end_src
+
+3 levels for org-imenu
+
+#+begin_src emacs-lisp
+
+(setq org-imenu-depth 3)
+
+#+end_src
+
+
+#+begin_src emacs-lisp
+
+(defvar my/org-imenu-filter-history
+  '("BINDING" "HOOK" "ADVICE" "FACE" "MODE" "DEFER"
+    "PERSONAL" "INACTIVE" "BUGFIX" "OTHER" "TIMER" "OS")
+  "Filter history list.")
+
+(defvar my/org-imenu-filter-function
+  (cdr (org-make-tags-matcher "*"))
+  "Filter function to decide if a headline is kept")
+
+(defun my/org-imenu-filter ()
+  "Define and apply a new filter"
+  
+  (interactive)
+  (let* ((match (consult-completing-read-multiple
+                 "FILTER: "
+                 my/org-imenu-filter-history
+                 nil nil nil
+                 'my/org-imenu-filter-history))
+         (match (mapconcat #'identity match " ")))
+    (when (string= "" match)
+      (setq match "*"))
+    (setq my/org-imenu-filter-function
+          (cdr (org-make-tags-matcher match)))
+    (imenu-list-refresh)))
+
+
+(defun my/org-imenu-filter-tree (&optional bound parent-match)
+  "Build a imenu list using current filter function"
+  
+  (let* ((headlines '()))
+    (save-excursion
+      (org-with-wide-buffer
+       (unless bound
+         (setq bound (point-max))
+         (goto-char (point-min)))
+       (while (re-search-forward org-heading-regexp bound t)
+         (let* ((element (org-element-at-point))
+                (begin (org-element-property :begin element))
+                (end (org-element-property :end element))
+                (marker (copy-marker begin))
+                (level (org-element-property :level element))
+
+                (match (save-excursion
+                         (goto-char begin)
+                         (funcall my/org-imenu-filter-function
+                                  nil (org-get-tags) level)))
+                
+                (title (org-element-property :raw-value element))
+                (title (org-link-display-format
+                        (substring-no-properties title)))
+                (title (propertize title 'org-imenu-marker marker
+                                         'org-imenu t))
+                (children (my/org-imenu-filter-tree end match)))
+           (goto-char end)
+
+           (cond ((> (length children) 0)
+                  (add-to-list 'headlines (append (list title) children) t))
+                 ((or match parent-match)
+                  (add-to-list 'headlines (cons title marker) t)))))))
+    headlines))
+
+(advice-add #'org-imenu-get-tree :override #'my/org-imenu-filter-tree)
+
+#+end_src
+
+
+ *** Configuration mode
+
+This section defines the ~my/config-mode~ to ease navigating and interacting with the configuration file.
+
+Navigation commands using the ilist menu.
+
+#+begin_src emacs-lisp
+
+(defun my/config-mode-prev-header ()
+  "Move to previous header"
+  
+  (interactive)
+  (with-current-buffer "*Ilist*"
+    (search-backward-regexp "^  ")
+    (imenu-list-display-dwim)))
+
+(defun my/config-mode-next-header ()
+  "Move to next header"
+    
+  (interactive)
+  (with-current-buffer "*Ilist*"
+    (forward-line)
+    (search-forward-regexp "^  ")
+    (imenu-list-display-dwim)))
+
+(defun my/config-mode-prev-section ()
+  "Move to previous section"
+    
+  (interactive)
+  (with-current-buffer "*Ilist*"
+    (search-backward-regexp "\\+ " nil nil 2)
+    (forward-line)
+    (imenu-list-display-dwim)))
+
+(defun my/config-mode-next-section ()
+  "Move to next section"
+    
+  (interactive)
+  (with-current-buffer "*Ilist*"
+    (previous-line)
+    (search-forward-regexp "\\+ ")
+    (forward-line)
+    (imenu-list-display-dwim)))
+
+#+end_src
+
+A minor mode for configuration
+
+#+name: config-mode
+#+begin_src emacs-lisp
+
+(define-minor-mode my/config-mode
+  "Configuration mode"
+  
+  :init-value nil
+  :global nil
+  :keymap (let ((map (make-sparse-keymap)))
+            (bind-key "C-c C-p"   #'my/config-mode-prev-header map)
+            (bind-key "C-c C-n"   #'my/config-mode-next-header map)
+            (bind-key "C-c C-S-p" #'my/config-mode-prev-section map)
+            (bind-key "C-c C-S-n" #'my/config-mode-next-section map)
+            (bind-key "C-`"       #'my/org-sidebar-toggle map)
+            (bind-key "C-c C-v t" #'my/org-babel-tangle map)
+            (bind-key "C-c t"     #'my/org-toggle-blocks map)
+            map)
+  (if my/config-mode
+      (my/org-sidebar)))
+  
+#+end_src
+
+A shortcut to edit configuration
+
+#+begin_src emacs-lisp
+
+(defun my/config ()
+  "Create a new for editing configuration"
+  
+  (interactive)
+  (select-frame (make-frame '((name . "my/config")
+                              (width . 150)
+                              (height . 45))))
+  (find-file "~/Documents/GitHub/dotemacs/dotemacs.org")
+  (my/config-mode))
+
+#+end_src
+
+
+*** Bugfix :BUGFIX:
+
+*Temporary bugfix* for babel emacs-lisp that does not take into account prologue/epilogue.
+See https://list.orgmode.org/CA+G3_PNrdhx0Ejzw8UO7DgZ+ju1B7Ar_eTch5MMViEpKGwqq3w@mail.gmail.com/T/
+(November 2020)
+
+#+name: org-babel-expand-body:emacs-lisp
+#+begin_src emacs-lisp
+
+(defun my/org-babel-expand-body:emacs-lisp (orig-fun body params)
+  "Expand BODY according to PARAMS and call original function with new body"
+
+  (let* ((pro (or (cdr (assq :prologue params)) ""))
+         (epi (or (cdr (assq :epilogue params)) ""))
+         (body (concat pro body epi)))
+    (apply orig-fun `(,body ,params))))
+
+(advice-add 'org-babel-expand-body:emacs-lisp
+            :around
+            #'my/org-babel-expand-body:emacs-lisp)
+
+#+end_src
+
+
 ** Benchmark
 
 #+begin_src emacs-lisp
@@ -1594,7 +1617,7 @@ Highlighting of the current line (native mode)
       corfu-auto t                 ; Enable auto completion
       corfu-separator ?\s          ; Orderless field separator
       corfu-quit-at-boundary nil   ; Never quit at completion boundary
-      corfu-quit-no-match nil      ; Never quit, even if there is no match
+      corfu-quit-no-match t        ; Quit when no match
       corfu-preview-current nil    ; Disable current candidate preview
       corfu-preselect-first nil    ; Disable candidate preselection
       corfu-on-exact-match nil     ; Configure handling of exact matches
@@ -1898,7 +1921,6 @@ We're using [[https://github.com/rougier/nano-modeline][nano-modeline]] and modi
 (set-face-attribute 'nano-modeline-inactive-status-RO nil
                     :inherit '(nano-modeline-inactive-secondary))
 
-(nano-modeline-mode 1)
 #+end_src
 
 We set a thin modeline
@@ -1913,13 +1935,26 @@ We set a thin modeline
   (setq mode-line-format (list ""))
   (setq-default mode-line-format (list ""))
   (set-face-attribute 'mode-line nil
-                      :inherit 'nano-modeline-inactive
+                      :box nil
+                      :inherit nil
+                      :foreground (face-background 'nano-subtle)
+                      :background (face-background 'nano-subtle)
                       :height 0.1)
   (set-face-attribute 'mode-line-inactive nil
-                      :inherit 'nano-modeline-inactive
+                      :box nil
+                      :inherit nil
+                      :foreground (face-background 'nano-subtle)
+                      :background (face-background 'nano-subtle)
                       :height 0.1))
 
 (add-hook 'nano-modeline-mode-hook #'my/thin-modeline)
+
+#+end_src
+
+We start the nano modeline.
+#+begin_src emacs-lisp
+
+(nano-modeline-mode 1)
 
 #+end_src
 
@@ -2254,7 +2289,7 @@ Refile/archive depending on the context (via maildir)
               :leave-func (lambda () (mu4e-message "Leaving inria context"))
               :match-func (lambda (msg)
                             (when msg (mu4e-message-contact-field-matches msg
-                                                                          :to "nicolas.rougier@inria.fr")))
+                                       :to "nicolas.rougier@inria.fr")))
               :vars `((user-mail-address . "nicolas.rougier@inria.fr")
                       (user-full-name . "Nicolas P. Rougier (inria)")
                       (mu4e-compose-signature . ,mu4e-signature)
@@ -2285,7 +2320,7 @@ To store the password in OSX keychain:
               :leave-func (lambda () (mu4e-message "Leaving gmail context"))
               :match-func (lambda (msg)
                             (when msg (mu4e-message-contact-field-matches msg
-                                                                          :to "nicolas.rougier@gmail.com")))
+                                      :to "nicolas.rougier@gmail.com")))
               :vars `((user-mail-address . "nicolas.rougier@gmail.com"  )
                       (user-full-name . "Nicolas P. Rougier (gmail)" )
                       ;; don't save messages to Sent Messages,
@@ -2315,7 +2350,7 @@ To store the password in OSX keychain:
               :leave-func (lambda () (mu4e-message "Leaving university context"))
               :match-func (lambda (msg)
                             (when msg (mu4e-message-contact-field-matches msg
-                                                                          :to "nicolas.rougier@u-bordeaux.fr")))
+                                       :to "nicolas.rougier@u-bordeaux.fr")))
               :vars `((user-mail-address . "nicolas.rougier@u-bordeaux.fr"  )
                       (user-full-name . "Nicolas P. Rougier (university)" )
                       (mu4e-compose-signature . ,mu4e-signature)
@@ -2324,7 +2359,10 @@ To store the password in OSX keychain:
                       (mu4e-drafts-folder . "/univ/drafts")
                       (mu4e-maildir-shortcuts . (("/univ/inbox" . ?i)
                                                  ("/univ/archive" . ?a)
-                                                 ("/univ/sent" . ?s))))))
+                                                 ("/univ/sent" . ?s)))
+                      (smtpmail-smtp-server . "smtpauth.u-bordeaux.fr")
+                      (smtpmail-stream-type . starttls)
+                      (smtpmail-smtp-service . 587))))
 
 #+end_src
 
