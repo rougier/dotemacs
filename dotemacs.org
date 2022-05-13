@@ -50,7 +50,7 @@ Note also that the first time you will start emacs using this configuration, *it
 ** To do :INACTIVE:
 
 - [ ] Tangle file when saving
-- [ ] Shift-tab to toggle sidebar (all entries)
+- [x] Shift-tab to toggle sidebar (all entries)
 - [x] Filter sidebar (`f` key)
 
 * Core
@@ -711,7 +711,7 @@ This section is meant to ease the writing of the configuration file using a dedi
 Before being able to use it, you need to execute the whole subtree using [[help:org-babel-execute-subtree][org-babel-execute-subtree]] (generally bound to =C-c C-v s=).
 
 
-*** Sidebar
+*** Sidebar :BINDING:
 
 #+name: my/org-sidebar
 #+begin_src emacs-lisp
@@ -810,6 +810,28 @@ Toggle code blocks folding, starting folded.
 
 #+end_src
 
+
+#+begin_src emacs-lisp
+
+(defvar my/imenu-list-folding-status t
+  "Folding status of the imenu-list")
+
+(defun my/imenu-list-toggle-folding ()
+  "Toggle top level nodes of the imenu-list buffer"
+  
+  (interactive)
+  (with-current-buffer "*Ilist*"
+    (save-excursion
+      (goto-char (point-min))
+      (while (re-search-forward "^\\+ " nil t)
+        (if my/imenu-list-folding-status
+            (hs-hide-block)
+          (hs-show-block)))
+      (setq my/imenu-list-folding-status (not my/imenu-list-folding-status)))))
+
+(bind-key "S-<tab>" #'my/imenu-list-toggle-folding imenu-list-major-mode-map)
+
+#+end_src
 
 *** Filter :BINDING:
 
