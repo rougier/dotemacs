@@ -103,7 +103,6 @@ This code is meant to go to the [[file:early-init.el][early-init.el]] file.
                                            ; collector during init
  package-enable-at-startup nil)            ; We'll use straight.el
 
-
 (setq native-comp-eln-load-path
       (list (expand-file-name "eln-cache" user-emacs-directory)))
 
@@ -852,7 +851,7 @@ This provide the ~my/org-imenu-filter~ that allow to filter sidebar entries usin
   "Define and apply a new filter"
   
   (interactive)
-  (let* ((match (consult-completing-read-multiple
+  (let* ((match (completing-read-multiple
                  "FILTER: "
                  my/org-imenu-filter-history
                  nil nil nil
@@ -880,7 +879,9 @@ This provide the ~my/org-imenu-filter~ that allow to filter sidebar entries usin
                 (end (org-element-property :end element))
                 (marker (copy-marker begin))
                 (level (org-element-property :level element))
-
+                (tags (save-excursion
+                         (goto-char begin)
+                          (org-get-tags)))
                 (match (save-excursion
                          (goto-char begin)
                          (funcall my/org-imenu-filter-function
@@ -891,6 +892,12 @@ This provide the ~my/org-imenu-filter~ that allow to filter sidebar entries usin
                         (substring-no-properties title)))
                 (title (propertize title 'org-imenu-marker marker
                                          'org-imenu t))
+                (svg-tags (mapconcat #'(lambda (tag)
+                                     (propertize tag 'display (svg-tag-make tag :face 'nano-faded)))
+                                 tags " "))
+                ;; (title (if tags (format "%s %s" title tags) title))
+                (title (if tags (format "%s %s" title svg-tags) title))
+                
                 (children (my/org-imenu-filter-tree end match)))
            (goto-char end)
 
@@ -2791,6 +2798,7 @@ Because the multiline header view uses margin to show new mail, we have to make 
     (set-face-attribute 'mu4e-header-highlight-face nil
                         :inherit 'nano-salient-i)
     (setq-local left-margin-width 2)
+    (setq-local cursor-type nil)
     (set-window-buffer nil "*mu4e-headers*")))
 
 (add-hook 'mu4e-headers-found-hook #'my/mu4e-headers-mode-setup)
