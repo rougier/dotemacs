@@ -708,15 +708,6 @@ This section is meant to ease the writing of the configuration file using a dedi
 
 Before being able to use it, you need to execute the whole subtree using [[help:org-babel-execute-subtree][org-babel-execute-subtree]] (generally bound to =C-c C-v s=).
 
-A shortcut for emacs-lisp source blocks. Type "<S" (in org-mode) then press tab.
-
-#+begin_src emacs-lisp
-
-(require 'org-tempo)
-(add-to-list 'org-structure-template-alist
-             '("S" . "src emacs-lisp"))
-
-#+end_src
 
 *** Sidebar
 
@@ -2969,6 +2960,16 @@ We adapt fill functions according to the indent level.
 
  (add-hook 'org-load-hook 'my/org-mode-hook)
  (add-hook 'org-mode-hook 'my/org-mode-hook)
+
+#+end_src
+
+A shortcut for emacs-lisp source blocks. Type "<S" (in org-mode) then press tab.
+
+#+begin_src emacs-lisp
+
+(require 'org-tempo)
+(add-to-list 'org-structure-template-alist
+             '("S" . "src emacs-lisp"))
 
 #+end_src
 
