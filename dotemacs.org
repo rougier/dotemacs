@@ -2569,7 +2569,7 @@ Here is the actual tag action
 
   (let* ((tags nil)
          (old-tags (mu4e-message-field msg :tags))
-         (new-tags (consult-completing-read-multiple
+         (new-tags (completing-read-multiple
                     "TAGS: "
                     mu4e-tag-history
                     nil
@@ -2669,17 +2669,18 @@ A custom multiline headers view for mu4e.
          (tags      (mu4e-message-field msg :tags))
          (top-spacing (if child                +0.000 -0.250))
          (bot-spacing (if (and root has-child) +0.250 +0.250))
-         (unread-mark (propertize (cond (unread               " ●")
+         (unread-mark (propertize (cond (unread               (propertize " ●" 'face 'nano-salient))
                                         ((and root has-child) "  ")
                                         (t                    "  "))
                                   'display `(raise ,top-spacing)))
          (one-line (and child mu4e-headers-include-related))
 
-         (face-sender (cond ((and root related)   '(nano-strong nano-salient))
-                             (root                '(nano-strong nano-default))
-                             ((and child related) '(:inherit nano-faded :height 140))
-                             (child               '(:inherit nano-default :height 140))
-                             (t                   '(nano-default))))
+         (face-sender (cond (unread               '(nano-salient nano-strong))
+                            ((and root related)   '(nano-strong nano-faded))
+                            (root                '(nano-strong nano-default))
+                            ((and child related) '(:inherit nano-faded :height 140))
+                            (child               '(:inherit nano-default :height 140))
+                            (t                   '(nano-default))))
          (face-subject (cond (unread  '(:inherit nano-salient))
                              (related '(:inherit nano-faded))
                              (t       '(:inherit nano-default))))
