@@ -337,6 +337,7 @@ Remove text properties for kill ring entries (see https://emacs.stackexchange.co
 
 (defun unpropertize-kill-ring ()
   (setq kill-ring (mapcar 'substring-no-properties kill-ring)))
+
 (add-hook 'kill-emacs-hook 'unpropertize-kill-ring)
 
 #+end_src
@@ -979,7 +980,8 @@ A minor mode for configuration
             map)
   (if my/config-mode
       (my/org-sidebar)))
-  
+
+
 #+end_src
 
 A shortcut to edit configuration
@@ -1207,11 +1209,18 @@ Emacs can use a large number of dialogs and popups. Here we get rid of them.
 (scroll-bar-mode -1)                    ; No scroll bars
 (tool-bar-mode -1)                      ; No toolbar
 
-;; Specific case for OSX since menubar is desktop-wide.
-(if (and (eq system-type 'darwin)
-         (display-graphic-p))
-    (menu-bar-mode 1) 
-  (menu-bar-mode -1))
+#+end_src
+
+
+Specific case for OSX since menubar is desktop-wide (see [[https://emacs.stackexchange.com/questions/28121/osx-switching-to-virtual-desktop-doesnt-focus-emacs][emacs.stackexchange.com/questions/28121]]) and [[https://bitbucket.org/mituharu/emacs-mac/src/892fa7b2501a403b4f0aea8152df9d60d63f391a/doc/emacs/macport.texi?at=master#macport.texi-529][emacs-mac documentation]].
+
+#+begin_quote
+  Unlike the original Emacs, enabling or disabling Menu Bar mode (@pxref{Menu Bars}) does not affect the appearance of the menu bar on the Mac port because it does not make sense on OS X having the global menu bar. Instead, the value of the @code{menu-bar-lines} frame parameter affects the system-wide full screen behavior of the frame. In most cases, disabling the menu bar of a particular frame by default means that it is a utility frame used for a subsidiary purpose together with other frames, rather than an ordinary frame on its own. Examples include the speedbar (@pxref{Speedbar}) and Ediff Control Panel (@pxref{Top, Ediff, Ediff, ediff, The Ediff Manual}). Using this heuristics, the Mac port regards a frame having a menu bar as an ordinary frame that is eligible for full screen. Conversely, a frame without a menu bar is considered as a utility frame and it can coexist with a full screen ordinary frame and other utility frames in a same desktop (or Space) for full screen. Note that a utility frame doesn't have the full screen button on the title bar. If you don't see the full screen button while it is supposed to be there, then check the menu bar setting.
+#+end_quote
+
+#+begin_src emacs-lisp
+
+(menu-bar-mode 1) 
 
 #+end_src
 
@@ -2916,6 +2925,7 @@ Provide a [[help:mu4e-dashboard][mu4e-dashboard]] command that opens the mu4e da
               org-use-property-inheritance t ; Properties ARE inherited
               org-indent-indentation-per-level 2 ; Indentation per level
               org-link-use-indirect-buffer-for-internals t ; Indirect buffer for internal links
+              org-fontify-quote-and-verse-blocks t ; Specific face for quote and verse blocks
               org-return-follows-link nil    ; Follow links when hitting return
               org-image-actual-width nil     ; Resize image to window width
               org-indirect-buffer-display 'other-window ; Tab on a task expand it in a new window
@@ -3748,7 +3758,7 @@ Setup note modes and ask for a title if the file does not exist
 
 #+end_src
 
-** Term & shell :ADVICE:HOOK:
+** Term & shell :ADVICE:
 
 Set default shell (zsh)
 
@@ -3795,9 +3805,9 @@ Open an iterm (OSX) and go to the curent directory
 
 #+end_src
 
-** Profiling
+* Profiling
 
-Report final initialization time
+** Final report
 
 #+begin_src emacs-lisp
 
