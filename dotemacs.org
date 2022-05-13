@@ -49,7 +49,9 @@ Note also that the first time you will start emacs using this configuration, *it
 
 ** To do :INACTIVE:
 
-
+- [ ] Tangle file when saving
+- [ ] Shift-tab to toggle sidebar (all entries)
+- [x] Filter sidebar (`f` key)
 
 * Core
 
