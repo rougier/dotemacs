@@ -1304,7 +1304,7 @@ Margin and divider mode.
               window-divider-default-places 'right-only
               left-margin-width 0
               right-margin-width 0
-              window-combination-resize t)  ; Resize windows proportionally
+              window-combination-resize nil) ; Do not resize windows proportionally
 
 (window-divider-mode 1)
 
