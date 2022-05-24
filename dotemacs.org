@@ -323,8 +323,11 @@ Emacs carefully copies the old contents to another file, called the “backup”
 
 (require 'recentf)
 
-(setq recentf-max-menu-items 50
-      recentf-exclude '("/Users/rougier/Documents/Mail.+"))
+(setq recentf-max-menu-items 10
+      recentf-max-saved-items 100
+      recentf-exclude '("/Users/rougier/Documents/Mail.+"
+                        "/Users/rougier/Documents/Notes.+"
+                        ))
 
 (let (message-log-max)
   (recentf-mode 1))
