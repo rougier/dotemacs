@@ -47,11 +47,13 @@ Note also that the first time you will start emacs using this configuration, *it
 
 #+end_src
 
-** To do :INACTIVE:
+** To do [4/5] :INACTIVE:
 
 - [ ] Tangle file when saving
-- [x] Shift-tab to toggle sidebar (all entries)
-- [x] Filter sidebar (`f` key)
+- [X] Hitting `space` on top node should open the node (instead of folding)
+- [X] Dim inactive entries in the sidebar
+- [X] Shift-tab to toggle sidebar (all entries)
+- [X] Filter sidebar (`f` key)
 
 * Core
 
