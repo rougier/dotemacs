@@ -2340,6 +2340,9 @@ Mini-frame mode
 :header-args:emacs-lisp: :prologue "(with-eval-after-load 'mu4e" :epilogue ")"
 :END:
 
+For OSX users, make sure to have a look at:
+https://macowners.club/posts/email-emacs-mu4e-macos/
+
 #+begin_src emacs-lisp  :prologue "" :epilogue ""
 
 (setq my/section-start-time (current-time))
@@ -2472,33 +2475,32 @@ Refile/archive depending on the context (via maildir)
 
 #+end_src
 
-*** Inria :PERSONAL:
+*** University :PERSONAL:
 
 #+begin_src emacs-lisp
 
 (add-to-list 'mu4e-contexts
              (make-mu4e-context
-              :name "inria"
-              :enter-func (lambda () (mu4e-message "Entering inria context"))
-              :leave-func (lambda () (mu4e-message "Leaving inria context"))
+              :name "University"
+              :enter-func (lambda () (mu4e-message "Entering university context"))
+              :leave-func (lambda () (mu4e-message "Leaving university context"))
               :match-func (lambda (msg)
                             (when msg (mu4e-message-contact-field-matches msg
-                                       :to "nicolas.rougier@inria.fr")))
-              :vars `((user-mail-address . "nicolas.rougier@inria.fr")
-                      (user-full-name . "Nicolas P. Rougier (inria)")
+                                       :to "nicolas.rougier@u-bordeaux.fr")))
+              :vars `((user-mail-address . "nicolas.rougier@u-bordeaux.fr"  )
+                      (user-full-name . "Nicolas P. Rougier (university)" )
                       (mu4e-compose-signature . ,mu4e-signature)
-                      (mu4e-sent-folder . "/inria/sent")
-                      (mu4e-trash-folder . "/inria/trash")
-                      (mu4e-drafts-folder . "/inria/drafts")
-                      (mu4e-maildir-shortcuts . (("/inria/inbox"   . ?i)
-                                                 ("/inria/archive" . ?a)
-                                                 ("/inria/sent"    . ?s)))
-                      (smtpmail-smtp-server . "smtp.inria.fr")
+                      (mu4e-sent-folder . "/univ/sent")
+                      (mu4e-trash-folder . "/univ/trash")
+                      (mu4e-drafts-folder . "/univ/drafts")
+                      (mu4e-maildir-shortcuts . (("/univ/inbox" . ?i)
+                                                 ("/univ/archive" . ?a)
+                                                 ("/univ/sent" . ?s)))
+                      (smtpmail-smtp-server . "smtpauth.u-bordeaux.fr")
                       (smtpmail-stream-type . starttls)
                       (smtpmail-smtp-service . 587))))
 
 #+end_src
-
 *** GMail :PERSONAL:
 
 To store the password in OSX keychain:
@@ -2533,32 +2535,33 @@ To store the password in OSX keychain:
 
 #+end_src
 
-*** University :PERSONAL:
+*** Inria :PERSONAL:
 
 #+begin_src emacs-lisp
 
 (add-to-list 'mu4e-contexts
              (make-mu4e-context
-              :name "University"
-              :enter-func (lambda () (mu4e-message "Entering university context"))
-              :leave-func (lambda () (mu4e-message "Leaving university context"))
+              :name "inria"
+              :enter-func (lambda () (mu4e-message "Entering inria context"))
+              :leave-func (lambda () (mu4e-message "Leaving inria context"))
               :match-func (lambda (msg)
                             (when msg (mu4e-message-contact-field-matches msg
-                                       :to "nicolas.rougier@u-bordeaux.fr")))
-              :vars `((user-mail-address . "nicolas.rougier@u-bordeaux.fr"  )
-                      (user-full-name . "Nicolas P. Rougier (university)" )
+                                       :to "nicolas.rougier@inria.fr")))
+              :vars `((user-mail-address . "nicolas.rougier@inria.fr")
+                      (user-full-name . "Nicolas P. Rougier (inria)")
                       (mu4e-compose-signature . ,mu4e-signature)
-                      (mu4e-sent-folder . "/univ/sent")
-                      (mu4e-trash-folder . "/univ/trash")
-                      (mu4e-drafts-folder . "/univ/drafts")
-                      (mu4e-maildir-shortcuts . (("/univ/inbox" . ?i)
-                                                 ("/univ/archive" . ?a)
-                                                 ("/univ/sent" . ?s)))
-                      (smtpmail-smtp-server . "smtpauth.u-bordeaux.fr")
+                      (mu4e-sent-folder . "/inria/sent")
+                      (mu4e-trash-folder . "/inria/trash")
+                      (mu4e-drafts-folder . "/inria/drafts")
+                      (mu4e-maildir-shortcuts . (("/inria/inbox"   . ?i)
+                                                 ("/inria/archive" . ?a)
+                                                 ("/inria/sent"    . ?s)))
+                      (smtpmail-smtp-server . "smtp.inria.fr")
                       (smtpmail-stream-type . starttls)
                       (smtpmail-smtp-service . 587))))
 
 #+end_src
+
 
 ** Encryption
 
