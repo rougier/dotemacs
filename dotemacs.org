@@ -3569,6 +3569,79 @@ Assign key
 
 #+end_src
 
+
+** Capture 2 :ADVICE:BINDING:
+
+#+begin_src emacs-lisp
+
+(defun my/org-capture-frame (orig-fun &optional goto keys)
+  (if (not (org-capture-get :description))
+      (funcall orig-fun goto keys))
+  (progn
+    (select-frame (my/mini-frame 8))
+    (let ((split-width-threshold nil)
+          (split-height-threshold 0))
+      (funcall orig-fun goto keys))
+    (delete-other-windows)
+    (setq word-wrap nil)
+    (setq truncate-lines nil)
+    (nano-modeline--update-selected-window)
+    (let* ((left (concat (propertize " "
+                                     'face '(nano-subtle)
+                                     'display '(raise +0.20))
+                         (propertize " Capture"
+                                     'face '(nano-strong nano-subtle))
+                         (propertize " "
+                                     'face 'nano-subtle
+                                     'display '(raise -0.30))
+                         (propertize (org-capture-get :description)
+                                     'face 'nano-default)))
+                 (right (propertize "C-c C-c: capture, C-c C-k: abort "
+                                    'face '(:inherit (nano-faded nano-subtle)
+                                            :weight light)))
+         (spacer (propertize (make-string (- (window-width)
+                                             (length left)
+                                             (length right)
+                                             0) ?\ )
+                             'face 'nano-subtle))
+         (header (concat left spacer right " ")))
+    (setq-local header-line-format header))
+    
+    (set-window-dedicated-p nil t)
+    (set-frame-parameter (selected-frame) 'height 5)
+    (face-remap-add-relative 'mode-line :background (face-background 'highlight))
+    (save-excursion
+      (goto-char (point-min))
+      (let ((overlay (make-overlay
+                      (line-beginning-position) (line-end-position))))
+        (overlay-put overlay 'display '(raise -0.5))))))
+
+#+end_src
+
+#+begin_src emacs-lisp
+
+(defun my/org-capture (goto key)
+  (interactive)
+  (unwind-protect
+      (progn
+        (advice-add 'org-capture :around #'my/org-capture-frame)
+        (org-capture goto key))
+    (advice-remove 'org-capture #'my/org-capture-frame)))
+
+(require 'org-capture)
+  
+(bind-key "C-c m" #'(lambda ()
+                      (interactive)
+                      (my/org-capture nil "m")))
+
+(bind-key "C-c i" #'(lambda ()
+                      (interactive)
+                      (my/org-capture nil "i")))
+
+(bind-key "C-g" #'org-capture-kill 'org-capture-mode-map)
+
+#+end_src
+
 ** Navigation :ADVICE:
 
 The default [[help:org-agenda-goto][org-agenda-goto]], which is used when =tab= key is pressed or when follow mode (F) is active open a window at a non specific place. Here, we make sure the window is opened where we want. In this case, this is below the agenda window.
@@ -3580,7 +3653,7 @@ The default [[help:org-agenda-goto][org-agenda-goto]], which is used when =tab= 
   
   (setq-local mode-line-format nil)
   (select-window (or (window-in-direction 'below (selected-window))
-                     (split-window nil -4 'below)))
+                     (split-window nil -6 'below)))
   (switch-to-buffer buffer)
   (setq-local header-line-format
               '((:eval
@@ -3598,15 +3671,17 @@ The default [[help:org-agenda-goto][org-agenda-goto]], which is used when =tab= 
 
 #+end_src
 
-Install the new function as an advice around [[help:org-agenda-goto][org-agenda-goto]].
+Install the new function as an advice around [[help:org-agenda-goto][org-agenda-goto]] and apply a narrow to subtree after
 
 #+begin_src emacs-lisp
 
 (define-advice org-agenda-goto (:around (orig-fn &rest args) "my/org-agenda-goto")
   (let ((display-buffer-overriding-action '(my/org-agenda-goto)))
-    (apply orig-fn args)))
+    (apply orig-fn args)
+    (org-narrow-to-subtree)))
 
 #+end_src
+
 
 Finally, we disable [[help:org-agenda-show-outline-path][org-agenda-show-outline-path]] since this is now redundant with the header line.
 
