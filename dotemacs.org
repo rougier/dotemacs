@@ -190,6 +190,10 @@ Packages used in this specific configuration. You may want to adapt this list. T
 (dolist (package package-list)
   (straight-use-package package))
 
+;; Special case for pdf-tools that has recently (2022) changed maintainer
+(straight-use-package
+ '(pdf-tools :type git :host github :repo "vedang/pdf-tools"))
+
 #+end_src
 
 My personal packages
@@ -1779,6 +1783,17 @@ Highlighting of the current line (native mode)
 (require 'hl-line)
 
 (global-hl-line-mode)
+
+#+end_src
+
+** PDF Tools
+
+For retina display (OSX)
+
+#+begin_src emacs-lisp
+
+(setq pdf-view-use-scaling t
+      pdf-view-use-imagemagick nil)
 
 #+end_src
 
