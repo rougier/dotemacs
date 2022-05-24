@@ -640,6 +640,115 @@ A set of date related functions, mostly used for mail display.
 
 #+end_src
 
+** Mini frame
+
+A set of functions to create a mini-frame over the header line.
+
+#+begin_src emacs-lisp
+
+(defun my/mini-frame (&optional height foreground background border)
+  "Create a child frame positionned over the header line whose
+width corresponds to the width of the current selected window.
+
+The HEIGHT in lines can be specified, as well as the BACKGROUND
+color of the frame. BORDER width (pixels) and color (FOREGROUND)
+can be also specified."
+  
+  (interactive)
+  (let* ((foreground (or foreground
+                         (face-foreground 'font-lock-comment-face nil t)))
+         (background (or background (face-background 'highlight nil t)))
+         (border (or border 1))
+         (height (round (* (or height 8) (window-font-height))))
+         (edges (window-pixel-edges))
+         (body-edges (window-body-pixel-edges))
+         (top (nth 1 edges))
+         (bottom (nth 3 body-edges))
+         (left (- (nth 0 edges) (or left-fringe-width 0)))
+         (right (+ (nth 2 edges) (or right-fringe-width 0)))
+         (width (- right left))
+
+         ;; Window divider mode
+         (width (- width (if (and (bound-and-true-p window-divider-mode)
+                                  (or (eq window-divider-default-places 'right-only)
+                                      (eq window-divider-default-places t))
+                                (window-in-direction 'right (selected-window)))
+                             window-divider-default-right-width
+                           0)))
+         (y (- top border))
+         (child-frame-border (face-attribute 'child-frame-border :background)))
+    (set-face-attribute 'child-frame-border t :background foreground)
+    (let ((frame (make-frame
+                  `((parent-frame . ,(window-frame))
+                    (delete-before . ,(window-frame))
+                    (minibuffer . nil)
+                    (modeline . nil)
+                    (left . ,(- left border))
+                    (top . ,y)
+                    (width . (text-pixels . ,width))
+                    (height . (text-pixels . ,height))
+                    ;; (height . ,height)
+                    (child-frame-border-width . ,border)
+                    (internal-border-width . ,border)
+                    (background-color . ,background)
+                    (horizontal-scroll-bars . nil)
+                    (menu-bar-lines . 0)
+                    (tool-bar-lines . 0)
+                    (desktop-dont-save . t)
+                    (unsplittable . nil)
+                    (no-other-frame . t)
+                    (undecorated . t)
+                    (pixelwise . t)
+                    (visibility . t)))))
+      (set-face-attribute 'child-frame-border t :background child-frame-border)
+      frame)))
+
+#+end_src
+
+#+begin_src emacs-lisp
+
+(defun my/mini-frame-reset (frame)
+  "Reset FRAME size and position.
+
+  Move frame at the top of parent frame and resize it
+  horizontally to fit the width of current selected window."
+  
+  (interactive)
+  (let* ((border (frame-parameter frame 'internal-border-width))
+         (height (frame-parameter frame 'height)))
+    (with-selected-frame (frame-parent frame)
+      (let* ((edges (window-pixel-edges))
+             (body-edges (window-body-pixel-edges))
+             (top (nth 1 edges))
+             (bottom (nth 3 body-edges))
+             (left (- (nth 0 edges) (or left-fringe-width 0)))
+             (right (+ (nth 2 edges) (or right-fringe-width 0)))
+             (width (- right left))
+             (y (- top border)))
+        (set-frame-width frame width nil t)
+        (set-frame-height frame height)
+        (set-frame-position frame (- left border) y)))))
+
+#+end_src
+
+#+begin_src emacs-lisp
+
+(defun my/mini-frame-shrink (frame &optional delta)
+  "Make the FRAME DELTA lines smaller.
+
+  If no argument is given, make the frame one line smaller. If
+  DELTA is negative, enlarge frame by -DELTA lines."
+
+  (interactive)
+  (let ((delta (or delta -1)))
+    (when (and (framep frame)
+               (frame-live-p frame)
+               (frame-visible-p frame))
+      (set-frame-parameter frame 'height
+                           (+ (frame-parameter frame 'height) delta)))))
+
+#+end_src
+
 ** Mu4e related
 
 A set of mail (mu4e) related functions.
