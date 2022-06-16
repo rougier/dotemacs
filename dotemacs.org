@@ -3663,7 +3663,7 @@ Set refile targets according to my setup
          "* TODO %?Task :INBOX:\n")
 
         ("m" "Meeting" entry  (file+headline "agenda.org" "Future")
-         "* %?Meeting <%<%Y-%m-%d %a 12:00-13:00>>"
+         "* %?Meeting   <%<%Y-%m-%d %a 12:00-13:00>>"
          :empty-lines-after 1)))
       
 #+end_src
