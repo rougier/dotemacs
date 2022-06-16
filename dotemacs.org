@@ -244,6 +244,15 @@ My personal packages
 (straight-use-package
  '(mu4e-folding :type git :host github :repo "rougier/mu4e-folding"))
 
+;; org imenu
+(straight-use-package
+ '(org-imenu :type git :host github :repo "rougier/org-imenu"))
+
+;; pdf-drop-mode
+(straight-use-package
+ '(pdf-drop-mode :type git :host github :repo "rougier/pdf-drop-mode"))
+
+
 ;; Bilbliography manager in org mode
 ;; (straight-use-package
 ;;  '(org-bib :type git :host github :repo "rougier/org-bib"))
@@ -1820,9 +1829,12 @@ Highlighting of the current line (native mode)
 For retina display (OSX)
 
 #+begin_src emacs-lisp
+;; (require 'pdf-tools)
 
-(setq pdf-view-use-scaling t
-      pdf-view-use-imagemagick nil)
+(add-hook 'doc-view-mode-hook 'pdf-tools-install)
+
+(setq-default pdf-view-use-scaling t
+              pdf-view-use-imagemagick nil)
 
 #+end_src
 
@@ -3142,6 +3154,52 @@ Provide a [[help:mu4e-dashboard][mu4e-dashboard]] command that opens the mu4e da
 #+end_src
 
 
+
+* Bibliography :INACTIVE:
+
+** Bibtex 
+
+Settings for bibtex
+
+#+begin_src emacs-lisp
+(setq bibtex-autokey-titleword-length 0
+      bibtex-autokey-name-year-separator ":"
+      bibtex-autokey-name-case-convert-function 'capitalize
+      bibtex-autokey-year-length 4
+      bibtex-autokey-names 1
+      bibtex-autokey-titleword-separator ""
+      bibtex-autokey-year-title-separator ""
+      bibtex-autokey-edit-before-use nil
+      imenu-list-position 'left
+      imenu-list-size 100
+      org-imenu-depth 2
+      org-image-actual-width `( ,(truncate (* (frame-pixel-width) 0.85)))
+      org-startup-with-inline-images t)
+#+end_src
+
+Dedicated header line for org-bib-mode
+
+#+begin_src emacs-lisp
+
+(defun my/org-bib-mode-hook ()
+
+  (with-current-buffer "*Ilist*"
+  
+  (setq header-line-format
+        '(:eval
+          (nano-modeline-render nil
+                                (buffer-name imenu-list--displayed-buffer)
+                                (format "(view mode: %s, filter: %s)"
+                                        (if (eq org-bib--view-mode-current 'none)
+                                            "-"
+                                          org-bib--view-mode-current)
+                                        (if (eq org-imenu-filter-string "*")
+                                            "-"
+                                          org-imenu-filter-string))
+                                "")))
+  (face-remap-add-relative 'hl-line :inherit 'nano-strong-i)))
+
+(add-hook 'org-bib-mode-hook #'my/org-bib-mode-hook)
 
 #+end_src
 
