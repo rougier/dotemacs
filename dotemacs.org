@@ -1180,8 +1180,7 @@ A minor mode for configuration
 
 A shortcut to edit configuration
 
-#+begin_src emacs-lisp
-
+#+begin_src emacs-lisp :prologue "" :epilogue ""
 (defun my/config ()
   "Create a new for editing configuration"
   
@@ -1191,6 +1190,17 @@ A shortcut to edit configuration
                               (height . 45))))
   (find-file "~/Documents/GitHub/dotemacs/dotemacs.org")
   (my/config-mode))
+
+#+end_src
+
+An autoload function for my/config (that will load org mode).
+
+#+begin_src emacs-lisp :prologue "" :epilogue ""
+
+(autoload 'my/config
+  (expand-file-name "init.el" user-emacs-directory)
+  "Autoloaded my/config command."
+  t)
 
 #+end_src
 
