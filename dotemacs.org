@@ -2399,7 +2399,7 @@ Mu4e doesn't come with an autoload function, we declare it here.
 #+begin_src emacs-lisp :prologue "" :epilogue ""
 
 (autoload 'mu4e
-  "/usr/local/Cellar/mu/1.6.10/share/emacs/site-lisp/mu/mu4e/mu4e.el"
+  "/usr/local/Cellar/mu/1.6.11/share/emacs/site-lisp/mu/mu4e/mu4e.el"
   "Start mu4e daemon and show its main window." t)
 
 #+end_src
@@ -2990,7 +2990,6 @@ A custom multiline headers view for mu4e.
         ;; Icons on the right
         (propertize icons 'display `(raise ,bot-spacing)))))))
 
-
 #+end_src
 
 Then, we redefine thread symbols (we'll mostly manage ourselves).
@@ -3050,19 +3049,35 @@ Since a header can now be displayed over several consecutive lines, we need to r
 #+end_src
 
 A special highlight function for root headers that takes the multiline root header into account
+*WARNING*: This fails for some headers, horizontal separator line is included in the highliht.
+         I added a dirty fix that need to be removed at some point (once bug is identified)
 
 #+begin_src emacs-lisp
 
-(setq hl-line-range-function #'my/mu4e-hl-line-move)
 (defun my/mu4e-hl-line-move ()
-  (let ((root (get-text-property
-               (min (point-max) (+ (line-beginning-position) 9))
-               'mu4e-root)))
-    (if root
-        (cons (+ (line-beginning-position) 11)
-              (line-beginning-position 2))
-      (cons (line-beginning-position)
-            (line-beginning-position 2)))))
+  (let ((root-1 (get-text-property
+                 (min (point-max) (+ (line-beginning-position) 9))
+                 'mu4e-root))
+        (root-2 (get-text-property
+                 (min (point-max) (+ (line-beginning-position) 10))
+                 'mu4e-root)))
+    (cond (root-1   (cons (+ (line-beginning-position) 11)
+                          (line-beginning-position 2)))
+          (root-2   (cons (+ (line-beginning-position) 12)
+                          (line-beginning-position 2)))
+          (t        (cons (line-beginning-position)
+                          (line-beginning-position 2))))))
+#+end_src
+
+We retrict the hack to mu4e-header-mode
+
+#+begin_src emacs-lisp
+
+ (defun my/mu4e-headers-mode-hl-line-move ()
+     (setq-local hl-line-range-function #'my/mu4e-hl-line-move))
+
+ (add-hook 'mu4e-headers-mode-hook  #'my/mu4e-headers-mode-hl-line-move)
+
 #+end_src
 
 A special overlay function for folding that takes the multiline root header into account
@@ -3089,6 +3104,8 @@ Provide a [[help:mu4e-dashboard][mu4e-dashboard]] command that opens the mu4e da
 
 (require 'mu4e-dashboard)
 (require 'svg-lib)
+
+(setq mu4e-dashboard-propagate-keymap nil)
 
 (defun mu4e-dashboard ()
   "Open the mu4e dashboard on the left side."
