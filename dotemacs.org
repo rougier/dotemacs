@@ -88,6 +88,11 @@ This will generate a header at the top of the tangled file to indicate it is gen
 
 (defvar my/init-start-time (current-time) "Time when init.el was started")
 (defvar my/section-start-time (current-time) "Time when section was started")
+(defun my/report-time (section)
+  (message "%-36s %.2fs"
+           (concat section " " "section time: ")
+           (float-time (time-subtract (current-time) my/section-start-time))))
+(message "---------------------------------------------------------------")
 
 #+end_src
 
@@ -447,8 +452,7 @@ Server start.
 
 #+begin_src emacs-lisp
 
-(message "Core section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "Core")
 
 #+end_src
 
@@ -1212,8 +1216,7 @@ See https://list.orgmode.org/CA+G3_PNrdhx0Ejzw8UO7DgZ+ju1B7Ar_eTch5MMViEpKGwqq3w
 
 #+begin_src emacs-lisp
 
-(message "Personal library section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "Personal library")
 
 #+end_src
 
@@ -1570,8 +1573,7 @@ It is a bit slow to load so we do need load it explicitely.
 
 #+begin_src emacs-lisp
 
-(message "Interface section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "Interface")
 
 #+end_src
 
@@ -1709,8 +1711,7 @@ Make sure underline is positionned at the very bottom.
 
 #+begin_src emacs-lisp
 
-(message "Visual section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "Visual")
 
 #+end_src
 
@@ -1801,8 +1802,7 @@ For retina display (OSX)
 
 #+begin_src emacs-lisp
 
-(message "Editing section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "Editing")
 
 #+end_src
 
@@ -1882,8 +1882,7 @@ Allow completion based on space-separated tokens, out of order.
 
 #+begin_src emacs-lisp
 
-(message "Completion section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "Completion")
 
 #+end_src
 
@@ -2345,8 +2344,7 @@ Mini-frame mode
 
 #+begin_src emacs-lisp
 
-(message "Minibuffer/Modeline section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "Minibuffer/Modeline")
 
 #+end_src
 
@@ -3094,8 +3092,11 @@ Provide a [[help:mu4e-dashboard][mu4e-dashboard]] command that opens the mu4e da
 
 #+begin_src emacs-lisp  :prologue "" :epilogue ""
 
-(message "Mail section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "Mail")
+
+#+end_src
+
+
 
 #+end_src
 
@@ -3197,10 +3198,11 @@ A shortcut for emacs-lisp source blocks. Type "<S" (in org-mode) then press tab.
 
 #+begin_src emacs-lisp  :prologue "" :epilogue ""
 
-(message "Org section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "Org")
 
 #+end_src
+
+
 
 
 * Agenda :DEFER:
@@ -3793,8 +3795,7 @@ Finally, we disable [[help:org-agenda-show-outline-path][org-agenda-show-outline
 
 #+begin_src emacs-lisp  :prologue "" :epilogue ""
 
-(message "Agenda section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "Agenda")
 
 #+end_src
 
@@ -3831,8 +3832,7 @@ Add fringe on the left side of magit windows such that we can highlight region u
 
 #+begin_src emacs-lisp  :prologue "" :epilogue ""
 
-(message "Versioning section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "Versioning")
 
 #+end_src
 
@@ -3954,8 +3954,7 @@ Setup bookmarlks ([[file:elfeed.org][elfeed.org]]) using [[https://github.com/re
 
 #+begin_src emacs-lisp  :prologue "" :epilogue ""
 
-(message "News section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "News")
 
 #+end_src
 
@@ -4134,8 +4133,7 @@ Setup note modes and ask for a title if the file does not exist
 
 #+begin_src emacs-lisp  :prologue "" :epilogue ""
 
-(message "Notes section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "Notes")
 
 #+end_src
 
@@ -4189,8 +4187,7 @@ Open an iterm (OSX) and go to the curent directory
 
 #+begin_src emacs-lisp  :prologue "" :epilogue ""
 
-(message "System section time: %.2fs"
-         (float-time (time-subtract (current-time) my/section-start-time)))
+(my/report-time "System")
 
 #+end_src
 
@@ -4203,8 +4200,9 @@ Open an iterm (OSX) and go to the curent directory
 (let ((init-time (float-time (time-subtract (current-time) my/init-start-time)))
       (total-time (string-to-number (emacs-init-time "%f"))))
 
-  (message "Initialization time: %.2fs  (+ %.2f system time)"
+  (message "---------------------------------------------------------------")
+  (message "Initialization time:                 %.2fs (+ %.2f system time)"
            init-time (- total-time init-time)))
-
+  (message "---------------------------------------------------------------")
 
 #+end_src
