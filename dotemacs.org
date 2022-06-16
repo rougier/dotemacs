@@ -1290,7 +1290,7 @@ Default frame geometry (large margin: 24 pixels).
                             (left-fringe . 0)
                             (right-fringe . 0)
                             (tool-bar-lines . 0)
-                            (menu-bar-lines . 0)))
+                            (menu-bar-lines . 1)))
 
 ;; Default frame settings
 (setq initial-frame-alist default-frame-alist)
@@ -1422,7 +1422,7 @@ Specific case for OSX since menubar is desktop-wide (see [[https://emacs.stackex
 
 #+begin_src emacs-lisp
 
-(menu-bar-mode 1) 
+(menu-bar-mode 1)
 
 #+end_src
 
