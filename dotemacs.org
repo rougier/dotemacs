@@ -1791,6 +1791,18 @@ Paren mode for highlighting matcing paranthesis
 
 #+end_src
 
+** Imenu list
+
+Imenu setup
+
+#+begin_src emacs-lisp
+
+(require 'imenu-list)
+
+(setq-default imenu-list-position 'left
+              imenu-max-item-length 1000)
+
+#+end_src
 ** Highlighting :MODE:
 
 Highlighting of the current line (native mode)
