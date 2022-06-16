@@ -189,6 +189,8 @@ Packages used in this specific configuration. You may want to adapt this list. T
         multi-term          ; Managing multiple terminal buffers in Emacs.
         pinentry            ; GnuPG Pinentry server implementation
         use-package         ; A configuration macro for simplifying your .emacs
+        vc-backup           ; VC backend for versioned backups
+        exec-path-from-shell; Get environment variables such as $PATH from the shell 
         which-key))         ; Display available keybindings in popup
 
 ;; Install packages that are not yet installed
@@ -305,16 +307,20 @@ Emacs carefully copies the old contents to another file, called the “backup”
 
 #+begin_src emacs-lisp
 
+
 (setq backup-directory-alist       ; File name patterns and backup directory names.
       `(("." . ,(expand-file-name "backups" user-emacs-directory)))
       make-backup-files t          ; Backup of a file the first time it is saved.
-      vc-make-backup-files nil     ; No backup of files under version contr
+      vc-make-backup-files t       ; No backup of files under version contr
       backup-by-copying t          ; Don't clobber symlinks
       version-control t            ; Version numbers for backup files
       delete-old-versions t        ; Delete excess backup files silently
       kept-old-versions 6          ; Number of old versions to keep
       kept-new-versions 9          ; Number of new versions to keep
       delete-by-moving-to-trash t) ; Delete files to trash
+
+;; Back
+(require 'vc-backup)
 
 #+end_src
 
@@ -4155,6 +4161,16 @@ Set default shell (zsh)
               explicit-shell-file-name "/bin/zsh")
 
 #+end_src
+
+Make sure our environment variables are set properly
+
+#+begin_src emacs-lisp
+
+;; (require 'exec-path-from-shell)
+;; (exec-path-from-shell-copy-envs '("LANG" "LC_ALL" "LC_CTYPES"))
+
+#+end_src
+
 
 Kill term buffer when exiting.
 
