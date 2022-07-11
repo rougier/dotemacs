@@ -662,8 +662,9 @@ A set of date related functions, mostly used for mail display.
 (defun my/date-relative (date)
   "Return a string with a relative date format."
 
-  (let ((delta (float-time (time-subtract (current-time) date)))
-        (days (- (my/date-day (current-time)) (my/date-day date))))
+  (let* ((now (current-time))
+         (delta (float-time (time-subtract now date)))
+         (days (ceiling (/ (float-time (time-subtract now date)) (* 60 60 24)))))
     (cond ((< delta (*       3 60))     "now")
           ((< delta (*      60 60))     (format "%d minutes ago" (/ delta   60)))
           ;;  ((< delta (*    6 60 60))     (format "%d hours ago"   (/ delta 3600)))
