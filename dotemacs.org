@@ -295,7 +295,6 @@ We tell emacs to use UTF-8 encoding as much as possible.
 
 (set-default-coding-systems 'utf-8)     ; Default to utf-8 encoding
 (prefer-coding-system       'utf-8)     ; Add utf-8 at the front for automatic detection.
-(set-default-coding-systems 'utf-8)     ; Set default value of various coding systems
 (set-terminal-coding-system 'utf-8)     ; Set coding system of terminal output
 (set-keyboard-coding-system 'utf-8)     ; Set coding system for keyboard input on TERMINAL
 (set-language-environment "English")    ; Set up multilingual environment
@@ -650,7 +649,7 @@ A set of date related functions, mostly used for mail display.
 #+begin_src emacs-lisp
 
 (defun my/date-is-yesterday (date)
-  "Check if DATE is today."
+  "Check if DATE is yesterday."
   
   (my/date-equal (my/date-dec (my/date-today) 1) date))
 
