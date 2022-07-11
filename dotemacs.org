@@ -3517,7 +3517,7 @@ Provide a [[help:mu4e-dashboard][mu4e-dashboard]] command that opens the mu4e da
 
 
 
-* Bibliography :INACTIVE:
+* Bibliography
 
 ** Bibtex 
 
@@ -3539,6 +3539,8 @@ Settings for bibtex
       org-startup-with-inline-images t)
 #+end_src
 
+** Org bib mode :HOOK:
+
 Dedicated header line for org-bib-mode
 
 #+begin_src emacs-lisp
@@ -3546,8 +3548,7 @@ Dedicated header line for org-bib-mode
 (defun my/org-bib-mode-hook ()
 
   (with-current-buffer "*Ilist*"
-  
-  (setq header-line-format
+    (setq header-line-format
         '(:eval
           (nano-modeline-render nil
                                 (buffer-name imenu-list--displayed-buffer)
@@ -3559,9 +3560,40 @@ Dedicated header line for org-bib-mode
                                             "-"
                                           org-imenu-filter-string))
                                 "")))
-  (face-remap-add-relative 'hl-line :inherit 'nano-strong-i)))
+    (face-remap-add-relative 'hl-line :inherit 'nano-strong-i)))
 
 (add-hook 'org-bib-mode-hook #'my/org-bib-mode-hook)
+
+#+end_src
+
+A shortcut to edit bibliography
+
+#+begin_src emacs-lisp :prologue "" :epilogue ""
+(defun my/biblio ()
+  "Create a new frame for editing bibliography"
+  
+  (interactive)
+  (require 'org-bib)
+  (setq imenu-list-position 'left
+        imenu-list-size 100
+        org-imenu-depth 2)
+
+  (select-frame (make-frame '((name . "my/biblio")
+                              (width . 180)
+                              (height . 45))))
+  (find-file "~/Documents/Papers/papers.org")
+  (org-bib-mode))
+
+#+end_src
+
+An autoload function for my/config (that will load org mode).
+
+#+begin_src emacs-lisp :prologue "" :epilogue ""
+
+(autoload 'my/biblio
+  (expand-file-name "init.el" user-emacs-directory)
+  "Autoloaded my/config command."
+  t)
 
 #+end_src
 
