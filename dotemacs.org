@@ -4157,6 +4157,38 @@ Assign key
 
 #+end_src
 
+Here we orverwrite the [[help:org-capture-place-template][org-capture-place-template]] to have the capture window below the current one. There must be a better way to do that but I did not find it yet. Since we are in org-agenda deferred mode, we need to cancel epiloque/prologue.
+
+#+begin_src emacs-lisp :prologue "" :epilogue ""
+
+(with-eval-after-load 'org-capture
+
+  (defun org-capture-place-template (&optional inhibit-wconf-store)
+    "Insert the template at the target location, and display the buffer.
+when `inhibit-wconf-store', don't store the window configuration, as it
+may have been stored before."
+    (unless inhibit-wconf-store
+      (org-capture-put :return-to-wconf (current-window-configuration)))
+    ;; (delete-other-windows)
+    ;; (org-switch-to-buffer-other-window
+    ;;  (org-capture-get-indirect-buffer (org-capture-get :buffer) "CAPTURE"))
+    (select-window (split-window-below -6))
+    (switch-to-buffer
+     (org-capture-get-indirect-buffer (org-capture-get :buffer) "CAPTURE"))
+    (widen)
+    (org-show-all)
+    (goto-char (org-capture-get :pos))
+    (setq-local outline-level 'org-outline-level)
+    (pcase (org-capture-get :type)
+      ((or `nil `entry) (org-capture-place-entry))
+      (`table-line (org-capture-place-table-line))
+      (`plain (org-capture-place-plain-text))
+      (`item (org-capture-place-item))
+      (`checkitem (org-capture-place-item)))
+    (setq-local org-capture-current-plist org-capture-plist)
+    (org-capture-mode 1)))
+
+#+end_src
 
 ** Capture 2 :ADVICE:BINDING:
 
@@ -4218,15 +4250,15 @@ Assign key
 
 (require 'org-capture)
   
-(bind-key "C-c m" #'(lambda ()
-                      (interactive)
-                      (my/org-capture nil "m")))
+;; (bind-key "C-c m" #'(lambda ()
+;;                       (interactive)
+;;                       (my/org-capture nil "m")))
 
-(bind-key "C-c i" #'(lambda ()
-                      (interactive)
-                      (my/org-capture nil "i")))
+;; (bind-key "C-c i" #'(lambda ()
+;;                       (interactive)
+;;                       (my/org-capture nil "i")))
 
-(bind-key "C-g" #'org-capture-kill 'org-capture-mode-map)
+;; (bind-key "C-g" #'org-capture-kill 'org-capture-mode-map)
 
 #+end_src
 
