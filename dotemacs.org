@@ -4460,7 +4460,14 @@ Hook on elfeed post screen (visual mode).
 #+begin_src emacs-lisp
 
 (defun my/elfeed-show-mode-hook ()
-  (visual-line-mode))
+  (visual-line-mode)
+;;  (setq truncate-lines t)
+
+  (let ((inhibit-read-only t)
+        (inhibit-modification-hooks t))
+    (setq-local truncate-lines nil)
+    (setq-local shr-width 79)
+    (set-buffer-modified-p nil)))
 
 (add-hook 'elfeed-show-mode-hook #'my/elfeed-show-mode-hook)
 
