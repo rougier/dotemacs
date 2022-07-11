@@ -2305,7 +2305,7 @@ No prompt editing and recursive minibuffer
 
 #+end_src
 
-** Miniframe :MODE:FACE:
+** Miniframe :MODE:FACE:INACTIVE:
 
 #+begin_src emacs-lisp
 
