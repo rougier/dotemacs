@@ -47,9 +47,9 @@ Note also that the first time you will start emacs using this configuration, *it
 
 #+end_src
 
-** To do [4/5] :INACTIVE:
+** To do [5/5] :INACTIVE:
 
-- [ ] Tangle file when saving
+- [X] Tangle file when saving (org-auto-tangle)
 - [X] Hitting `space` on top node should open the node (instead of folding)
 - [X] Dim inactive entries in the sidebar
 - [X] Shift-tab to toggle sidebar (all entries)
@@ -1255,7 +1255,15 @@ See https://list.orgmode.org/CA+G3_PNrdhx0Ejzw8UO7DgZ+ju1B7Ar_eTch5MMViEpKGwqq3w
 
 #+end_src
 
+*** Auto-tangle
 
+Automatically tangle org-mode files with the option #+auto_tangle: t
+
+#+begin_src emacs-lisp
+
+(add-hook 'org-mode-hook 'org-auto-tangle-mode)
+
+#+end_src
 ** Benchmark
 
 #+begin_src emacs-lisp
