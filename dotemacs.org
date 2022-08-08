@@ -1998,6 +1998,7 @@ We replace some of emacs functions with their consult equivalent
 (bind-key "C-x C-r" #'consult-recent-file)
 (bind-key "C-x h"   #'consult-outline)
 (bind-key "C-x b"   #'consult-buffer)
+(bind-key "C-c h"   #'consult-history)
 ;; (bind-key "M-:"     #'consult-complex-command)
 
 #+end_src
