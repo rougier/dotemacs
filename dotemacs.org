@@ -1517,7 +1517,7 @@ A smarter fill/unfill command
   
   (interactive)
   (let ((fill-column
-         (if (eq last-command #'fill/unfill)
+         (if (eq last-command #'my/fill-unfill)
              (progn (setq this-command nil)
                     (point-max))
            fill-column)))
