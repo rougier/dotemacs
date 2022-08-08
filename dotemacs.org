@@ -1988,7 +1988,8 @@ For the [[help:consult-goto-line][consult-goto-line]] and ~consult-line~ command
   "Consult line with live preview"
   
   (interactive)
-  (let ((consult-preview-key 'any))
+  (let ((consult-preview-key 'any)
+        (mini-frame-resize 'grow-only)) ;; !! Important
     (consult-line)))
 
 (bind-key "C-s"   #'my/consult-line)
@@ -2020,7 +2021,7 @@ For the [[help:consult-goto-line][consult-goto-line]] and ~consult-line~ command
 ;; (setq completion-styles '(basic substring partial-completion flex))
 
 (setq vertico-resize nil        ; How to resize the Vertico minibuffer window.
-      vertico-count 10          ; Maximal number of candidates to show.
+      vertico-count 8           ; Maximal number of candidates to show.
       vertico-count-format nil) ; No prefix with number of entries
 
 (vertico-mode)
@@ -2235,30 +2236,121 @@ We start the nano modeline.
 
 #+end_src
 
-** Minibuffer :HOOK:ADVICE:
+** Minibuffer :MODE:HOOK:
 
 Headerline (fake) for minibuffer
 
 #+begin_src emacs-lisp
+(require 'minibuffer-header)
 
-(defun my/minibuffer-header ()
+(setq minibuffer-header-show-message t
+      minibuffer-header-hide-prompt t
+      minibuffer-header-default-message "")
+
+(set-face-attribute 'minibuffer-header-face nil
+                    :inherit 'nano-subtle
+                    :extend t)
+(set-face-attribute 'minibuffer-header-message-face nil
+                    :inherit '(nano-subtle nano-faded)
+                    :extend t)
+#+end_src
+
+This should be an advice but it is simpler to rewrite the function
+
+#+begin_src emacs-lisp
+
+(defun my/minibuffer-header-format (prompt)
   "Minibuffer header"
   
-  (let ((depth (minibuffer-depth)))
+  (let* ((prompt (replace-regexp-in-string "[: \t]*$" "" prompt))
+         (depth (minibuffer-depth))
+         (prompt (cond ((string= prompt "M-x") "Extended command")
+                       ((string= prompt "Function") "Help on function")
+                       ((string= prompt "Callable") "Help on function or macro")
+                       ((string= prompt "Variable") "Help on variable")
+                       ((string= prompt "Command") "Help on command")
+                       ((string= prompt "Eval") "Evaluate lisp expression")
+                       (t prompt))))
     (concat
-     (propertize (concat "  " (if (> depth 1)
-                                   (format "Minibuffer (%d)" depth)
-                                 "Minibuffer ")
-                         "\n")
-                 'face `(:inherit (nano-subtle nano-strong)
-                         :box (:line-width (1 . 3)
-                               :color ,(face-background 'nano-subtle)
-                               :style flat)
-                         :extend t)))))
+     (propertize (format " %d " depth)
+                 'face `(:inherit (nano-salient-i nano-strong)
+                         :extend t))
+     (propertize " "
+                 'face 'nano-subtle 'display `(raise ,nano-modeline-space-top))
+
+     (propertize prompt
+                 'face `(:inherit (nano-subtle nano-strong nano-salient)
+                         :extend t))
+     (propertize " "
+                 'face 'nano-subtle 'display `(raise ,nano-modeline-space-bottom))
+     (propertize "\n" 'face 'highlight)
+     (propertize " " 'face 'highlight
+                     'display `(raise ,nano-modeline-space-top))
+     (propertize "︎︎" 'face '(:inherit (nano-salient nano-strong)))
+     (propertize " " 'face 'highlight
+                     'display `(raise ,nano-modeline-space-bottom)))))
+
+(setq minibuffer-header-format #'my/minibuffer-header-format)
 
 #+end_src
 
-Vertico will disable truncate lines when point if too far on thee right. Problem is that it'll mess up with our fake headerline. We thus rewrite here the function to have truncate lines always on.
+Activate minibuffer header
+
+#+begin_src emacs-lisp
+
+(minibuffer-header-mode)
+
+#+end_src
+
+Some styling setting for the minibuffer
+
+#+begin_src emacs-lisp
+
+(defun my/minibuffer-setup ()
+
+  (set-window-margins nil 0 0)
+  (set-fringe-style '(0 . 0))
+  (cursor-intangible-mode t)
+  (face-remap-add-relative 'default :inherit 'highlight))
+
+(add-hook 'minibuffer-setup-hook #'my/minibuffer-setup)
+
+#+end_src
+
+Showing key binding for the current command
+
+#+begin_src emacs-lisp
+
+;; Code from https://stackoverflow.com/questions/965263
+(defun my/lookup-function (keymap func)
+  (let ((all-bindings (where-is-internal (if (symbolp func)
+                                             func
+                                           (cl-first func))
+                                         keymap))
+        keys key-bindings)
+    (dolist (binding all-bindings)
+      (when (and (vectorp binding)
+                 (integerp (aref binding 0)))
+        (push binding key-bindings)))
+    (push (mapconcat #'key-description key-bindings " or ") keys)
+    (car keys)))
+
+
+(defun my/minibuffer-show-last-command-setup ()
+  (setq minibuffer-header-default-message
+   (my/lookup-function (current-global-map) this-command)))
+
+(add-hook 'minibuffer-setup-hook #'my/minibuffer-show-last-command-setup)
+
+(defun my/minibuffer-show-last-command-exit ()
+  (setq minibuffer-header-default-message ""))
+(add-hook 'minibuffer-exit-hook #'my/minibuffer-show-last-command-exit)
+
+#+end_src
+
+
+
+Vertico will disable truncate lines when point is too far on the right. Problem is that it'll mess up with our fake headerline. We thus rewrite here the function to have truncate lines always on.
 
 #+begin_src emacs-lisp
 
@@ -2283,38 +2375,6 @@ Vertico will disable truncate lines when point if too far on thee right. Problem
 
 #+end_src
 
-
-Setup minibuffer with our header line
-
-#+begin_src emacs-lisp
-(defun my/minibuffer-setup ()
-  "Install a header line in the minibuffer via an overlay (and a hook)"
-  
-  (set-window-margins nil 0 0)
-  (set-fringe-style '(0 . 0))
-  (cursor-intangible-mode t)
-  (face-remap-add-relative 'default
-                           :inherit 'highlight)
- (let* ((overlay (make-overlay (+ (point-min) 0) (+ (point-min) 0)))
-        (inhibit-read-only t))
-
-    (save-excursion
-      (goto-char (point-min))
-      (insert (propertize
-               (concat (my/minibuffer-header)
-                       (propertize "\n" 'face `(:height 0.33))
-                       (propertize " "))
-               'cursor-intangible t
-               'read-only t
-               'field t
-               'rear-nonsticky t
-               'front-sticky t)))))
-
-
-(add-hook 'minibuffer-setup-hook #'my/minibuffer-setup)
-
-#+end_src
-
 No prompt editing and recursive minibuffer
 
 #+begin_src emacs-lisp
@@ -2326,13 +2386,14 @@ No prompt editing and recursive minibuffer
 
 #+end_src
 
-** Miniframe :MODE:FACE:INACTIVE:
+
+** Miniframe :MODE:FACE:BUGFIX:
 
 #+begin_src emacs-lisp
 
 (require 'mini-frame)
 
-(defcustom my/minibuffer-position 'top
+(defcustom my/minibuffer-position 'bottom
   "Minibuffer position, one of 'top or 'bottom"
   :type '(choice (const :tag "Top"    top)
                  (const :tag "Bottom" bottom))
@@ -2358,7 +2419,7 @@ No prompt editing and recursive minibuffer
                     right
                   (+ right (frame-parameter nil 'right-fringe))))
          (border 1)
-         (width (- right left (* 0 border)))
+         (width (- right left (* 1 border)))
 
          ;; Window divider mode
          (width (- width (if (and (bound-and-true-p window-divider-mode)
@@ -2383,9 +2444,10 @@ No prompt editing and recursive minibuffer
                   (t
                    `((left . ,(- left border))
                      (top . ,y)
+
                      (width . (text-pixels . ,width))
                      (child-frame-border-width . ,border)
-                     (internal-border-width . ,border)))))))
+                     (internal-border-width . 0)))))))
 
   (set-face-background 'child-frame-border (face-foreground 'nano-faded))
   (setq mini-frame-default-height 3)
@@ -2394,16 +2456,50 @@ No prompt editing and recursive minibuffer
   (setq mini-frame-ignore-commands
         '("edebug-eval-expression" debugger-eval-expression))
   (setq mini-frame-internal-border-color (face-foreground 'nano-faded))
+
   (setq mini-frame-resize-min-height 3)
   (setq mini-frame-resize t)
+  ;; (setq mini-frame-resize 'grow-only)
+  ;; (setq mini-frame-default-height (+ 1 vertico-count))
+  ;; (setq mini-frame-resize-height (+ 1 vertico-count))
+  ;; (setq mini-frame-resize nil)
 
 #+end_src
 
-Mini-frame mode
+Mini-frame mode OFF
 
 #+begin_src emacs-lisp
 
-(mini-frame-mode 1)
+;; (mini-frame-mode 1)
+
+#+end_src
+
+
+More a hack than a fix but the code below improve the mini-frame resize by
+setting position explicity. CURRENTLY INACTIVE
+
+#+begin_src emacs-lisp
+
+(defun my/mini-frame--resize-mini-frame (frame)
+  "Resize FRAME vertically only.
+This function used as value for `resize-mini-frames' variable."
+  (funcall mini-frame--fit-frame-function
+           frame
+           mini-frame-resize-max-height
+           (if (eq mini-frame-resize 'grow-only)
+               (max (frame-parameter frame 'height)
+                    mini-frame-resize-min-height)
+             mini-frame-resize-min-height)
+           ;; A max-width must be included to work around a bug in Emacs which
+           ;; causes wrapping to not be taken into account in some situations
+           ;; https://debbugs.gnu.org/cgi/bugreport.cgi?bug=56102
+           (window-body-width)
+           nil
+           'vertically)
+
+  (if (eq my/minibuffer-position 'top)
+      (modify-frame-parameters  mini-frame-completions-frame `((top . 0)))
+    (modify-frame-parameters  mini-frame-completions-frame `((top . (- 1))))))
 
 #+end_src
 
@@ -2674,7 +2770,9 @@ See https://www.djcbsoftware.nl/code/mu/mu4e/Reading-messages.html
 
 #+end_src
 
-** Read
+** Read :BINDING:FACE:
+
+Various settings
 
 #+begin_src emacs-lisp
 
