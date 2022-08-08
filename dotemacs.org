@@ -2438,7 +2438,7 @@ Mu4e doesn't come with an autoload function, we declare it here.
 #+begin_src emacs-lisp :prologue "" :epilogue ""
 
 (autoload 'mu4e
-  "/usr/local/Cellar/mu/1.8.5/share/emacs/site-lisp/mu/mu4e/mu4e.el"
+  "/usr/local/Cellar/mu/1.8.7/share/emacs/site-lisp/mu/mu4e/mu4e.el"
   "Start mu4e daemon and show its main window." t)
 
 #+end_src
@@ -2513,8 +2513,14 @@ General information about me.
 
 ;; Common signature for all accounts.
 (setq mu4e-signature (concat
-  "Nicolas P. Rougier — Institute of Neurodegenerative Diseases\n"
-  "University of Bordeaux — https://www.labri.fr/perso/nrougier\n"))
+                      "Nicolas P. Rougier —— www.labri.fr/perso/nrougier\n"
+                      "Institute of Neurodegenerative Diseases, Bordeaux"
+;;  "Nicolas P. Rougier — Institute of Neurodegenerative Diseases\n"
+;;  "University of Bordeaux — https://www.labri.fr/perso/nrougier\n"
+;;  "Nicolas P. Rougier —— Research Director\n"
+;;  "Institute of Neurodegenerative Diseases\n"
+;;  "Bordeaux —— www.labri.fr/perso/nrougier"
+  ))
 
 #+end_src
 
@@ -2681,6 +2687,24 @@ See https://www.djcbsoftware.nl/code/mu/mu4e/Reading-messages.html
 
 #+end_src
 
+n/p for nevigating unread mails
+
+#+begin_src emacs-lisp
+
+(bind-key "n" #'mu4e-headers-next-unread mu4e-headers-mode-map)
+(bind-key "p" #'mu4e-headers-prev-unread mu4e-headers-mode-map)
+
+#+end_src
+
+Custom faces
+
+#+begin_src emacs-lisp
+
+(set-face-attribute 'mu4e-system-face nil :inherit 'nano-critical)
+(set-face-attribute 'mu4e-header-marks-face nil :inherit 'nano-critical)
+(set-face-attribute 'mu4e-header-highlight-face nil :inherit 'nano-salient-i)
+ 
+#+end_src
 ** Write :HOOK:BINDING:
 
 See www.gnu.org/software/emacs/manual/html_node/message/Insertion-Variables.html
@@ -2868,353 +2892,284 @@ Some face specification for folding.
 
 (require 'mu4e-folding)
 
-(set-face-background 'mu4e-folding-child-folded-face
-                     (face-background 'highlight))
-
-(set-face-background 'mu4e-folding-child-unfolded-face
-                     (face-background 'highlight))
-
-(set-face-background 'mu4e-folding-root-folded-face
-                     (face-background 'default))
-
-(set-face-background 'mu4e-folding-root-unfolded-face
-                     (face-background 'highlight))
-#+end_src
-
-
-
-** Layout for mu4e (1.8) :HOOK:BINDING:INACTIVE:
-
-#+begin_src emacs-lisp
-
-(defun my/tagify-string (string face)
-  (replace-regexp-in-string "\\[\\(.+?\\)\\]"
-                            #'(lambda (string)
-                                (let ((text (upcase (match-string 1 string))))
-                                  (propertize text 'display
-                                              (svg-tag-make text
-                                                           :face face))))
-                            string))
+(set-face-attribute 'mu4e-folding-root-folded-face nil
+                    :background (face-background 'default)
+                    :extend t)
+(set-face-attribute 'mu4e-folding-root-unfolded-face nil
+                    :background (face-background 'default)
+                    :extend t)
+(set-face-attribute 'mu4e-folding-child-folded-face nil
+                    :background (face-background 'default)
+                    :extend t)
+(set-face-attribute 'mu4e-folding-child-unfolded-face nil
+                    :background (face-background 'default)
+                    :extend t)
 
 #+end_src
 
-A custom multiline headers view for mu4e.
+** Layout for mu4e :HOOK:BINDING:
 
-#+name: my/mu4e-headers-multiline
-#+begin_src emacs-lisp
-
-(defun my/mu4e-headers-multiline (msg)
-  "A multiline headers mode."
-  
-  (let* ((sender  (my/mu4e-get-sender msg))
-         (date (mu4e-message-field msg :date))
-         (date (concat (propertize "" 'display " ")
-                       (format "%16s" (my/date-relative date))))
-         (subject (mu4e-message-field msg :subject))
-         (subject (truncate-string-to-width subject (- (window-width) 16) nil nil "…"))
-         (flagged   (memq 'flagged   (mu4e-message-field msg :flags)))
-         (attach    (memq 'attach    (mu4e-message-field msg :flags)))
-         (unread    (memq 'unread    (mu4e-message-field msg :flags)))
-         (replied   (memq 'replied   (mu4e-message-field msg :flags)))
-         (encrypted (memq 'encrypted (mu4e-message-field msg :flags)))
-         (draft     (memq 'draft     (mu4e-message-field msg :flags)))
-;;         (thread (mu4e-message-field msg :thread))
-         (thread (mu4e-message-field msg :meta))
-         
-         (related (and thread (plist-get thread :related)))
-         (prefix (mu4e~headers-thread-prefix thread))
-         (root (plist-get thread :root))
-         (orphan (plist-get thread :orphan))
-         (first-child (plist-get thread :first-child))
-         (has-child (plist-get thread :has-child))
-         (level (plist-get thread :level))
-         (root (or root (and orphan (or first-child has-child))))
-         (child (and thread (not root)))
-         (tags      (mu4e-message-field msg :tags))
-         (top-spacing (if child                +0.0 -0.0))
-         (bot-spacing (if (and root has-child) +0.0 +0.0))
-;;         (top-spacing (if child                +0.000 -0.250))
-;;         (bot-spacing (if (and root has-child) +0.250 +0.250))
-         (unread-mark (propertize (cond (unread               (propertize " ●" 'face 'nano-salient))
-                                        ((and root has-child) "  ")
-                                        (t                    "  "))
-                                  'display `(raise ,top-spacing)))
-         (one-line (and child mu4e-headers-include-related))
-
-         (face-sender (cond (unread               '(nano-salient nano-strong))
-                            ((and root related)   '(nano-strong nano-faded))
-                            (root                '(nano-strong nano-default))
-                            ((and child related) '(:inherit nano-faded :height 140))
-                            (child               '(:inherit nano-default :height 140))
-                            (t                   '(nano-default))))
-         (face-subject (cond (unread  '(:inherit nano-salient))
-                             (related '(:inherit nano-faded))
-                             (t       '(:inherit nano-default))))
-         (face-tags (cond (related '(:inherit (nano-faded)              :height 120))
-                          (t       '(:inherit (nano-popout nano-strong) :height 120))))
-         (face-date    (cond (t '(:inherit nano-faded :height 140))))
-         
-         (icons (string-join
-                 `(,@(if draft   `( ,(propertize "" 'face 'nano-faded)))
-                   ,@(if attach  `( ,(propertize "" 'face 'nano-faded)))
-                   ,@(if flagged `( ,(propertize "" 'face 'nano-salient)))
-                   ) " ")))
-
-    (concat
-
-     ;; Separaction line between threads
-     (when root
-       (concat
-        (propertize " "
-                    'mu4e-root t
-                    'display `((margin left-margin) "  "))
-        (propertize "-" 'display "\n"
-                    'face '(:extend t
-                            :strike-through t
-                            :inherit nano-subtle-i))
-        "  ")) ;; !! NON-BREAKING SPACE -> will be searched later
-
-     ;; Children are always indented (relatively to root)
-     (when (and child one-line)
-       (concat 
-        (propertize "│" 'face face-sender)))
-
-     ;; Unread mark appears in the left margin
-     (propertize " " 'face (if unread 'nano-default face-sender)
-                     'display `((margin left-margin) ,unread-mark))
-
-     ;; Sender
-     (cond (one-line     (propertize (concat prefix sender)
-                                     'face face-sender
-                                     'display `(raise ,top-spacing)))
-           ((and root has-child) (propertize (concat " " sender)
-                                             'face face-sender
-                                             'display `(raise ,top-spacing)))
-           (t (propertize sender 'face face-sender
-                                 'display `(raise ,top-spacing))))
-     
-     " "
-     ;; Replied
-     (when replied
-         (propertize " " 'face face-sender
-                          'display `(raise ,top-spacing)))
-
-     ;; In one line mode (children), icons are displayed next to sender
-     (when one-line
-         (concat (propertize icons 'display `(raise ,top-spacing)) " "))
-
-     ;; Tags next to sender
-     (when tags
-       (concat 
-        (propertize " " 'face face-tags
-                         'display `(raise ,top-spacing))
-        (mapconcat #'(lambda (tag)
-                       (propertize tag 'face face-tags
-                                       'display `(raise ,top-spacing)))
-                   tags (propertize "," 'face face-tags
-                                       'display `(raise ,top-spacing)))))
-
-     ;; Spacing to have date aligned on the right
-     (propertize " " 'display `(space :align-to (- right 1 ,(* 1.0 (length date)))))
-
-     ;; Date
-     (propertize date 'face face-date
-;;                      'display `(raise ,top-spacing)
-                      )
-
-     ;; When not a child
-     (when (or root (not mu4e-headers-include-related))
-       (concat
-
-        ;; Second line. We use a display property such that hl-line-mode works correctly.
-        (propertize " " 'display "\n")
-
-        ;; Blank spaces in the margin (for nice hl-line-mode)
-        (propertize " " 'face '(nano-strong nano-salient)
-                        'display `((margin left-margin) "  "))
-
-        ;; Indentation (to compensate for the virtual "\n" we introduced before)
-        (propertize "  ")
-
-        ;; Align subject and sender when this is a child
-        (when (and one-line child)
-            (propertize "  " 'face 'nano-faded))
-
-        ;; Subject
-        
-;;        (propertize (my/tagify-string subject 'nano-default)
-;;                    'face face-subject)
-        (propertize subject 'display `(raise ,bot-spacing)
-                            'face face-subject)
-
-        ;; Spacing to have icons aligned on the right
-        (propertize " " 'display `(space :align-to (- right ,(length icons) 1)))
-
-        ;; Icons on the right
-        (propertize icons 'display `(raise ,bot-spacing)))))))
-
-#+end_src
-
-Then, we redefine thread symbols (we'll mostly manage ourselves).
-
+*** Headers
 
 #+begin_src emacs-lisp
 
-(setq mu4e-headers-thread-root-prefix          '(""    . "")
-      mu4e-headers-thread-first-child-prefix   '(" "   . " ")
-      mu4e-headers-thread-child-prefix         '(" "   . " ")
-      mu4e-headers-thread-last-child-prefix    '(" "   . " ")
-      mu4e-headers-thread-connection-prefix    '(" |"  . "  ")
-      mu4e-headers-thread-blank-prefix         '(""    . "")
-      mu4e-headers-thread-orphan-prefix        '(" "   . "")
-      mu4e-headers-thread-single-orphan-prefix '(""    . "")
-      mu4e-headers-thread-duplicate-prefix     '("="   . "="))
+(setq mu4e-headers-fields
+      '((:my/date       . 12)
+        (:my/flags      . 1)
+        (:my/from       . 28)
+        (:my/subject    . nil)))
 
-#+end_src
-
-And we install the new header.
-
-#+begin_src emacs-lisp
-
-(add-to-list 'mu4e-header-info-custom
-             '(:multiline . (:name "multiline"
-                             :shortname ""
-                             :function my/mu4e-headers-multiline)))
-(setq mu4e-headers-fields  '((:multiline . nil)))
-
-#+end_src
-
-Because the multiline header view uses margin to show new mail, we have to make sure there are always margin in the headers view. We also make the hl-line more salient.
-
-#+name: my/mu4e-headers-setup
-#+begin_src emacs-lisp
-
-(defun my/mu4e-headers-mode-setup ()
-
-  (with-current-buffer "*mu4e-headers*"
-    (set-face-attribute 'mu4e-header-highlight-face nil
-                        :inherit 'nano-salient-i)
-    (setq-local left-margin-width 2)
-    (setq-local cursor-type nil)
-    (set-window-buffer nil "*mu4e-headers*")))
-
-(add-hook 'mu4e-headers-found-hook #'my/mu4e-headers-mode-setup)
-(add-hook 'mu4e-headers-mode-hook  #'my/mu4e-headers-mode-setup)
-
-#+end_src
-
-Since a header can now be displayed over several consecutive lines, we need to remap prev/next line such as to use mu4e prev/next functions (that works properly with multiline headers).
-
-#+begin_src emacs-lisp
-
-(bind-key [remap next-line] #'mu4e-headers-next mu4e-headers-mode-map)
-(bind-key [remap previous-line] #'mu4e-headers-prev mu4e-headers-mode-map)
-
-#+end_src
-
-A special highlight function for root headers that takes the multiline root header into account.
-
-#+begin_src emacs-lisp
-
-(defun my/mu4e-hl-line-move ()
-  (let* ((beg (line-beginning-position))
-         (end (min (line-beginning-position 2) (point-max)))
-         (match1 (search-forward "  " end t))
-         (match2 (search-forward "│" end t)))
-    (goto-char beg)
-    (cond (match1 (cons (- match1 2) end))
-          (match2 (cons (+ match2 1) end))
-          (t      (cons beg end)))))
-
-#+end_src
-
-We retrict the hack to mu4e-header-mode
-
-#+begin_src emacs-lisp
-
- (defun my/mu4e-headers-mode-hl-line-move ()
-     (setq-local hl-line-range-function #'my/mu4e-hl-line-move))
-
- (add-hook 'mu4e-headers-mode-hook  #'my/mu4e-headers-mode-hl-line-move)
-
-#+end_src
-
-A special overlay function for folding that takes the multiline root header
-into account & insert the number of children at the root level (replacing "" symbol)
-
-#+begin_src emacs-lisp
-
-(defun mu4e-folding--make-root-overlay (beg end)
-  "Create the root overlay."
-  
-  (let* ((buffer-read-only)
-         (overlay (car (mu4e-folding--children-overlay)))
-         (count (if overlay
-                    (overlay-get overlay 'mu4e-folding-children-count)
-                  0)))
-    (save-excursion
-      (goto-char beg)
-      (when (search-forward "" end t)
-        (put-text-property (- (point) 1) (point)
-                           'display (svg-lib-tag (format "%d" count) nil
-                                                 :ascent 'center)))))
-  (save-excursion
-    (let* ((match (search-forward "  " end t)))
-      (if match
-          (make-overlay (- match 2) end)
-        (make-overlay beg end)))))
-
-
-#+end_src
-
-#+begin_src emacs-lisp
-
-(defun my/mu4e-move-mark-overlay ()
-   (interactive)
-   (let* ((beg (line-beginning-position))
-          (end (line-beginning-position 2))
-          (overlays (overlays-in beg end)))
-     (dolist (overlay overlays)
-       (when (overlay-get overlay 'mu4e-mark)
-         (move-overlay overlay
-                       (overlay-start overlay)
-                       (+ (overlay-start overlay) 2))))))
+(setq mu4e-headers-thread-root-prefix          '(""   . "")
+      mu4e-headers-thread-first-child-prefix   '(""   . "")
+      mu4e-headers-thread-child-prefix         '(""   . "")
+      mu4e-headers-thread-last-child-prefix    '(""   . "")
+      mu4e-headers-thread-connection-prefix    '("| " . "| ")
+      mu4e-headers-thread-blank-prefix         '(""   . "")
+      mu4e-headers-thread-orphan-prefix        '(""   . "")
+      mu4e-headers-thread-single-orphan-prefix '(""   . "")
+      mu4e-headers-thread-duplicate-prefix     '("="  . "="))
 
 (plist-put (cdr (assq 'refile   mu4e-marks)) :char "")
 (plist-put (cdr (assq 'trash    mu4e-marks)) :char "")
-(plist-put (cdr (assq 'untrash  mu4e-marks)) :char "×")
-(plist-put (cdr (assq 'unread   mu4e-marks)) :char "")
-(plist-put (cdr (assq 'delete   mu4e-marks)) :char "")
-(plist-put (cdr (assq 'flag     mu4e-marks)) :char "")
-(plist-put (cdr (assq 'unflag   mu4e-marks)) :char "")
+(plist-put (cdr (assq 'action   mu4e-marks)) :char "")
+(plist-put (cdr (assq 'untrash  mu4e-marks)) :char "")
+(plist-put (cdr (assq 'delete   mu4e-marks)) :char "×")
+(plist-put (cdr (assq 'flag     mu4e-marks)) :char "")
+(plist-put (cdr (assq 'unflag   mu4e-marks)) :char "")
 (plist-put (cdr (assq 'move     mu4e-marks)) :char "")
 (plist-put (cdr (assq 'tag      mu4e-marks)) :char "")
 
 #+end_src
 
+**** Colorization of recent emails
+
 #+begin_src emacs-lisp
 
-;; (defun test ()
-;;   (interactive)
-;;   (save-excursion
-;;     (let* ((buffer-read-only)
-;;            (beg (search-forward ""  (line-beginning-position 2) t))
-;;            (end (search-forward "\n" (line-beginning-position 2) t))
-;;            (overlays (overlays-in beg end))
-;;            (marked))
-;;       (dolist (overlay overlays)
-;;         (when (overlay-get overlay 'my/mu4e-mark)
-;;           (setq marked t)
-;;           (delete-overlay overlay)))
-      
-;;       (unless marked
-;;         (let ((overlay (make-overlay beg (- end 1))))
-;;           (overlay-put overlay 'display (svg-lib-tag "ARCHIVE"))
-;;           (overlay-put overlay 'mu4e-mark t))))))
+(defun my/mu4e-headers-colorize (item msg)
+  "Colorize item depending on whe msg was received"
+  
+  (let* ((recent (* 5 60)) ;; 5 minutes
+         (now (current-time))
+         (unread (mu4e-message-field msg :unread))
+         (date (mu4e-message-field msg :date))
+         (delta (float-time (time-subtract now date))))
+    (if (and (< delta recent) unread)
+        (propertize item 'face 'nano-salient)
+      item)))
 
 #+end_src
 
-** Layout for mu4e (1.8) :HOOK:BINDING:
+**** Date (custom info)
+
+#+begin_src emacs-lisp
+
+(require 'relative-date)
+
+(defun my/mu4e-headers-date (msg)
+  (let* ((date (mu4e-message-field msg :date)))
+    (my/mu4e-headers-colorize
+       (format "%12s" (relative-date date)) msg)))
+
+(add-to-list 'mu4e-header-info-custom
+                 '(:my/date . (:name "my/date"
+                               :shortname "D"
+                               :function my/mu4e-headers-date)))
+#+end_src
+
+**** From (custom info)
+
+#+begin_src emacs-lisp
+
+(defun my/mu4e-headers-from (msg)
+  (let* ((from        (my/mu4e-get-sender msg))
+         (meta        (when msg (mu4e-message-field msg :meta)))
+         (root        (when meta (plist-get meta :root)))
+         (orphan      (when meta (plist-get meta :orphan)))
+         (first-child (when meta (plist-get meta :first-child)))
+         (has-child   (when meta (plist-get meta :has-child)))
+         (root        (when meta (plist-get meta :root)))
+         (from        (cond ((and root has-child)       (concat " " from))
+                            ((and orphan first-child)   (concat " " from))
+                            ((and root (not has-child)) (concat "" from))
+                            (t                          (concat "│ " from)))))
+    (my/mu4e-headers-colorize from msg)))
+
+(add-to-list 'mu4e-header-info-custom
+             '(:my/from . (:name "my/from"
+                           :shortname "F"
+                           :function my/mu4e-headers-from)))
+
+#+end_src
+
+**** Flags (custom info)
+
+#+begin_src emacs-lisp
+
+(defun my/mu4e-headers-flags (msg)
+  (let* ((size (mu4e-message-field msg :size))
+         (flags (cond ((memq 'flagged   (mu4e-message-field msg :flags)) "")
+                     ((and (> size 256000)
+                           (memq 'attach    (mu4e-message-field msg :flags))) "")
+                     ((memq 'replied   (mu4e-message-field msg :flags)) "")
+                     ((memq 'draft     (mu4e-message-field msg :flags)) "")
+                     ((memq 'trashed   (mu4e-message-field msg :flags)) "")
+                     ((memq 'encrypted (mu4e-message-field msg :flags)) "")
+                     (t ""))))
+    (my/mu4e-headers-colorize flags msg)))
+
+(add-to-list 'mu4e-header-info-custom
+             '(:my/flags . (:name "my/flags"
+                            :shortname "F"
+                            :function my/mu4e-headers-flags)))
+
+#+end_src
+
+**** Tags (custom info)
+
+#+begin_src emacs-lisp
+
+(defface mu4e-tag-face
+  '((t :inherit (nano-popout nano-strong)))
+  "Face for message tags"
+  :group 'mu4e-faces)
+
+(defun my/mu4e-headers-tags (msg)
+  (let* ((tags (mu4e-message-field msg :tags)))
+    (if tags
+        (propertize (format "[%s]" (mapconcat #'identity tags ","))
+                    'face 'mu4e-tag-face)
+      "")))
+(add-to-list 'mu4e-header-info-custom
+             '(:my/tags . (:name "my/tags"
+                           :shortname "T"
+                           :function my/mu4e-headers-tags)))
+
+#+end_src
+
+**** Thread count (custom info)
+
+This is an empty info field (4 non-breaking spaces) that will be overwritten by folding mode.
+
+#+begin_src emacs-lisp
+
+(defun my/mu4e-headers-thread-counter (msg)
+  "    ") ;; NON-BREAKING spaces
+(add-to-list 'mu4e-header-info-custom
+             '(:my/counter . (:name "my/counter"
+                              :shortname "#"
+                              :function my/mu4e-headers-thread-counter)))
+#+end_src
+
+**** Subject (custom info)
+
+#+begin_src emacs-lisp
+
+(defun my/mu4e-headers-subject (msg)
+  (let* ((thread (mu4e-message-field msg :meta))
+         (prefix (mu4e~headers-thread-prefix thread))
+         (subject (mu4e-message-field msg :subject))
+         (subject (concat prefix subject " " (my/mu4e-headers-tags msg))))
+    (my/mu4e-headers-colorize subject msg)))
+
+(add-to-list 'mu4e-header-info-custom
+             '(:my/subject . (:name "my/subject"
+                              :shortname "S"
+                              :function my/mu4e-headers-subject)))
+
+#+end_src
+
+*** Folding 
+
+#+begin_src emacs-lisp
+
+(require 'mu4e-folding)
+
+;; (defun mu4e-folding--make-root-overlay (beg end)
+;;   "Create the root overlay."
+  
+;;   (let* ((buffer-read-only)
+;;          (overlay (car (mu4e-folding--children-overlay)))
+;;          (count (if overlay
+;;                     (overlay-get overlay 'mu4e-folding-children-count)
+;;                   0)))
+;;     (save-excursion
+;;       (goto-char beg)
+;;       (when (search-forward "" end t)
+;;         (put-text-property (- (point) 1) (point)
+;;                            'display (svg-lib-tag (format "%d" count) nil
+;;                                                  :ascent 'center)))))
+;;   (save-excursion
+;;     (let* ((match (search-forward "  " end t)))
+;;       (if match
+;;           (make-overlay (- match 2) end)
+;;         (make-overlay beg end)))))
+
+;; (defun mu4e-folding--make-root-overlay (beg end)
+;;   "Create the root overlay."
+ 
+;;   (let* ((buffer-read-only)
+;;          (overlay (car (mu4e-folding--children-overlay)))
+;;          (count (if overlay
+;;                     (overlay-get overlay 'mu4e-folding-children-count)
+;;                   0))
+;;          (tag (format "%d" count))
+;;          (tag (svg-lib-tag tag nil
+;;                            :margin (- 4 (length tag))
+;;                            :alignment 1.0
+;;                            )))
+;;     (save-excursion
+;;       (goto-char beg)
+;;       (when (search-forward "    " end t)
+;;         (set-text-properties (- (point) 4) (+ (point) 1)
+;;                              `(display ,tag)))))
+ 
+;;   (let ((buffer-read-only)
+;;         (overlay (make-overlay beg end)))
+;;     overlay))
+
+#+end_src
+
+*** Threads separation
+
+#+begin_src emacs-lisp
+
+(defun my/mu4e-headers-is-root ()
+  "Check if message at point is the root of a thread"
+  (let* ((msg  (get-text-property (point) 'msg))
+         (meta (when msg (mu4e-message-field msg :meta)))
+         (orphan      (when meta (plist-get meta :orphan)))
+         (first-child (when meta (plist-get meta :first-child)))
+         (has-child   (when meta (plist-get meta :has-child)))
+         (root     (when meta (plist-get meta :root))))
+
+    (or root (and orphan first-child))))
+
+;; my/mu4e-headers-is-root
+
+(defun my/mu4e-headers-separate-root ()
+  (save-excursion
+    (let ((buffer-read-only))
+      (goto-char (point-min))
+      (while (not (eobp))
+        (when (my/mu4e-headers-is-root)
+          (goto-char (line-beginning-position))
+          (unless (or (eq (point) 1)
+                      (and (> (point) (point-min))
+                           (get-text-property (- (point) 1) 'mu4e-separator)))
+            (insert (propertize "\n"
+                                'mu4e-separator t
+                                'face '(:inherit nano-subtle-i
+                                        :strike-through t
+                                        :extend t)))))
+        (forward-line)))))
+
+(add-hook 'mu4e-headers-found-hook #'my/mu4e-headers-separate-root)
+
+#+end_src
+
+
+
+** Layout for mu4e (1.8, alternative) :HOOK:BINDING:INACTIVE:
 
 A custom multiline headers view for mu4e.
 
@@ -3373,15 +3328,15 @@ And we install the new header.
 
 #+begin_src emacs-lisp
 
-(add-to-list 'mu4e-header-info-custom
-             '(:multiline . (:name "multiline"
-                             :shortname ""
-                             :function my/mu4e-headers-multiline)))
-(setq mu4e-headers-fields  '((:multiline . nil)))
+;; (add-to-list 'mu4e-header-info-custom
+;;              '(:multiline . (:name "multiline"
+;;                              :shortname ""
+;;                              :function my/mu4e-headers-multiline)))
+;; (setq mu4e-headers-fields  '((:multiline . nil)))
 
 #+end_src
 
-*** Margins
+*** Margins :INACTIVE:
 
 Because the multiline header view uses margin to show new mail, we have to make sure there are always margin in the headers view. We also make the hl-line more salient.
 
@@ -3402,7 +3357,7 @@ Because the multiline header view uses margin to show new mail, we have to make 
 
 #+end_src
 
-*** Navigation
+*** Navigation :INACTIVE:
 
 Since a header can now be displayed over several consecutive lines, we need to remap prev/next line such as to use mu4e prev/next functions (that works properly with multiline headers).
 
@@ -3413,13 +3368,14 @@ Since a header can now be displayed over several consecutive lines, we need to r
 
 #+end_src
 
-*** Highlight
+*** Highlight :INACTIVE:
 
 A special highlight function for root headers that takes the multiline root header into account.
 
 #+begin_src emacs-lisp
 
 (defun my/mu4e-hl-line-move ()
+
   (save-excursion
     (let* ((beg (line-beginning-position))
            (end (min (line-beginning-position 2) (point-max)))
@@ -3443,7 +3399,7 @@ We retrict the hack to mu4e-header-mode
 
 #+end_src
 
-*** Folding
+*** Folding :INACTIVE:
 
 A special overlay function for folding that takes the multiline root header
 into account & insert the number of children at the root level (replacing "" symbol)
