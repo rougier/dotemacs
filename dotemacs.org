@@ -910,7 +910,7 @@ This defines an org sidebar using imenu-list.
     (imenu-list-minor-mode)
     (imenu-list-stop-timer)
     (hl-line-mode)
-    (face-remap-add-relative 'hl-line :inherit 'nano-strong-i)
+    (face-remap-add-relative 'hl-line :inherit 'nano-subtle)
     (setq header-line-format
           '(:eval
             (nano-modeline-render nil
@@ -1661,6 +1661,17 @@ A consistent theme for GNU Emacs. The light theme is based on Material colors an
 (setq nano-fonts-use t) ; Use theme font stack
 (nano-light)            ; Use theme light version
 (nano-mode)             ; Recommended settings
+
+
+(defun my/set-face (face style)
+  "Reset FACE and make it inherit STYLE."
+  (set-face-attribute face nil
+                      :foreground 'unspecified :background 'unspecified
+                      :family     'unspecified :slant      'unspecified
+                      :weight     'unspecified :height     'unspecified
+                      :underline  'unspecified :overline   'unspecified
+                      :box        'unspecified :inherit    style))
+(my/set-face 'italic 'nano-faded)
 
 #+end_src
 
@@ -4533,6 +4544,7 @@ Hook on elfeed main screen (hl-line mode).
 
 (defun my/elfeed-search-mode-hook ()
   (hl-line-mode t)
+  (face-remap-add-relative 'hl-line :inherit 'nano-subtle)
   (set-window-fringes nil 0 1) ; One pixel right fringe to avoid ellipsis
   (setq cursor-type nil))
 
