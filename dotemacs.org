@@ -314,6 +314,18 @@ We tell emacs to use UTF-8 encoding as much as possible.
 
 #+end_src
 
+** Path :PERSONAL:
+
+Extending executable for recollq program
+
+#+begin_src emacs-lisp
+(setenv "PATH" (concat (getenv "PATH") ":" "/Users/rougier/Applications/recoll.app/Contents/MacOS"))
+(setq exec-path (append exec-path '("/Users/rougier/Applications/recoll.app/Contents/MacOS")))
+
+(setenv "PATH" (concat (getenv "PATH") ":" "/Users/rougier/bin"))
+(setq exec-path (append exec-path '("/Users/rougier/bin")))
+#+end_src
+
 ** Recovery
 
 If Emacs or the computer crashes, you can recover the files you were editing at the time of the crash from their auto-save files. To do this, start Emacs again and type the command ~M-x recover-session~. Here, we parameterize how files are saved in the background.
