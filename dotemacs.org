@@ -1066,6 +1066,7 @@ This provide the ~my/org-imenu-filter~ that allow to filter sidebar entries usin
 
 #+begin_src emacs-lisp
 
+(require 'org)
 (require 'svg-tag-mode)
 
 (defvar my/org-imenu-filter-history
