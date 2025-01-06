@@ -1949,7 +1949,7 @@ A few more useful configurations...
 ;; Completion in source blocks
 (require 'cape)
 
-(add-to-list 'completion-at-point-functions 'cape-symbol)
+(add-to-list 'completion-at-point-functions 'cape-elisp-symbol)
 
 #+end_src
 
